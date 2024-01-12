@@ -4,9 +4,11 @@ const testing = std.testing;
 const tokenizer = @import("./tokenizer.zig");
 const ast = @import("./ast.zig");
 const output = @import("./output.zig");
+const utils = @import("./utils.zig");
 
 pub fn main() !void {
-    const results = try tokenizer.get_tokens("assembly {\nPUSH0;PUSH0;ADD;\n}"[0..]);
+    const content = try utils.read_file();
+    const results = try tokenizer.get_tokens(content);
     const assembly = try ast.get_get_ast(results);
 
     output.print_assembly_block(assembly);
