@@ -1,12 +1,11 @@
 const std = @import("std");
 
-pub fn read_file() ![]u8 {
+pub fn read_file(filePath: []u8) ![]u8 {
     const allocator = std.heap.page_allocator;
 
-    const filePath = "./programs/your_first_program.golf";
+    //    const filePath = "./programs/your_first_program.golf";
 
     const file = try std.fs.cwd().openFile(filePath, .{});
-
 
     const fileInfo = try file.stat();
 
@@ -14,7 +13,7 @@ pub fn read_file() ![]u8 {
 
     var fileContents: []u8 = try allocator.alloc(u8, fileSize);
 
-    // TODO: Need to handle these comments ? 
+    // TODO: Need to handle these comments ?
     _ = try file.read(fileContents);
 
     _ = file.close();

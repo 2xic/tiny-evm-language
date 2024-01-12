@@ -7,7 +7,17 @@ const output = @import("./output.zig");
 const utils = @import("./utils.zig");
 
 pub fn main() !void {
-    const content = try utils.read_file();
+    const args = try std.process.argsAlloc(std.heap.page_allocator);
+
+    if (args.len < 2) {
+        // Print a message if no command-line arguments are provided
+        std.debug.print("Usage: cli [file path]\n", .{});
+        return;
+    }
+
+    const file = args[1];
+
+    const content = try utils.read_file(file);
     const results = try tokenizer.get_tokens(content);
     const assembly = try ast.get_get_ast(results);
 

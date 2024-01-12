@@ -15,7 +15,7 @@ zig build --summary all
 
 ## Run
 ```
-./zig-out/bin/cli
+./zig-out/bin/cli [path] 
 ```
 
 ## Test 

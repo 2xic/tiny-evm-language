@@ -1,6 +1,10 @@
 // assembly ->
 const std = @import("std");
 
+const Opcodemetdata = struct {
+    opcode: u8,
+};
+
 const Opcode = struct {
     name: []const u8, // Field with the name
     opcode: u8,
@@ -75,17 +79,21 @@ fn parse_assembly_block(parser: Parser) !AssemblyBlock {
         while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
             // Opcodes I hope  ...
             const value = parser_var.get_next_symbol();
-            // TODO: Is there a nicer way to deal with this ?
-            if (std.mem.eql(u8, value, "PUSH0")) {
-                var opcode = Opcode.init("PUSH0", 0x5F);
-                try opcodes.append(opcode);
-            } else if (std.mem.eql(u8, value, "ADD")) {
-                var opcode = Opcode.init("ADD", 0x01);
-                try opcodes.append(opcode);
-            } else {
-                // We failed
+
+            // Opcode metadata
+            var opcodeMap = std.StringHashMap(Opcodemetdata).init(std.heap.page_allocator);
+            try opcodeMap.put("STOP", Opcodemetdata{ .opcode = 0x00 });
+            try opcodeMap.put("PUSH0", Opcodemetdata{ .opcode = 0x5F });
+            try opcodeMap.put("ADD", Opcodemetdata{ .opcode = 0x01 });
+
+            const opcodeType = opcodeMap.get(value);
+
+            if (opcodeType == null) {
+                // Handle the case when the value is not in the opcode map
                 @panic("Something went wrong! Unknown opcode");
             }
+
+            try opcodes.append(Opcode.init(value, opcodeType.?.opcode));
         }
     } else {
         @panic("Something went wrong! Unknown opcode");
