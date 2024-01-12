@@ -34,6 +34,18 @@ pub const CompareBlock = struct {
 pub const IfBlock = struct {
     // This could also ohld AssemblyBlocks ...
     cmp: CompareBlock,
+    body: std.ArrayList(BaseBlocks),
+};
+
+pub const IfBlockError = union(enum) {
+    IfBlock: IfBlock,
+    Null: void,
+};
+
+pub const BaseBlocks = union(enum) {
+    IfBlock: IfBlock,
+    AssemblyBlock: AssemblyBlock,
+    Null: void,
 };
 
 fn initEmptyOpcodeSlice() []Opcode {
@@ -60,55 +72,61 @@ const Parser = struct {
     }
 };
 
-pub fn get_get_ast(entries: [][]const u8) !AssemblyBlock {
+pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(BaseBlocks) {
     // First get tokens ... Then we need to compare that against all the next blocks
-    for (entries) |entry| {
-        std.debug.print("token == {s}\n", .{entry});
+    for (entries, 0..) |entry, i| {
+        std.debug.print("token ({}) == {s} \n", .{ i, entry });
     }
 
     std.debug.print("=====END====\n", .{});
 
     var parser = Parser.init(entries);
 
+    var opcodes = std.ArrayList(BaseBlocks).init(std.heap.page_allocator);
+    var oldIndex = parser.currentIndex;
     while (parser.currentIndex + 1 < entries.len) {
-        const value = try parse_assembly_block(&parser);
-        std.debug.print("wwowoow\n", .{});
-
-        const typeName = @TypeOf(value);
-        std.debug.print("Type of myValue is: {}\n", .{typeName});
-
-        switch (value) {
-            ErrorOrBlock.AssemblyBlock => |assemblyBlock| {
-                return assemblyBlock;
-            },
-            ErrorOrBlock.Null => {
-                const if_value = try parrse_if_block(&parser);
-                switch (if_value) {
-                    ErrorIfBLock.IfBlock => |block| {
-                        _ = block;
-                        std.debug.print("You are winner! {}\n", .{typeName});
-                    },
-                    ErrorIfBLock.Null => {
-                        @panic("Something went wrong! Unknown code");
-                    },
-                }
-            },
+        const opcode: BaseBlocks = get_base_block(&parser);
+        try opcodes.append(opcode);
+        if (oldIndex == parser.currentIndex) {
+            @panic("what");
         }
+        oldIndex = parser.currentIndex;
     }
 
-    @panic("Something went wrong! Unknown opcode");
+    return opcodes;
 }
 
-const ErrorIfBLock = union(enum) {
-    IfBlock: IfBlock,
-    Null: void,
-};
+fn get_base_block(_parser: *Parser) BaseBlocks {
+    var parser = _parser;
+    const currentPosition = parser.currentIndex;
+    const value = parse_assembly_block(parser);
+
+    switch (value) {
+        ErrorOrBlock.AssemblyBlock => |assemblyBlock| {
+            return (.{ .AssemblyBlock = assemblyBlock });
+        },
+        ErrorOrBlock.Null => {
+            parser.currentIndex = currentPosition;
+            const if_value = parrse_if_block(parser);
+            switch (if_value) {
+                IfBlockError.IfBlock => |block| {
+                    return (.{ .IfBlock = block });
+                },
+                IfBlockError.Null => {
+                    @panic("Something went wrong! Unknown code at position");
+                },
+            }
+            @panic("Something went wrong! Unknown code at position");
+        },
+    }
+    @panic("Something went wrong! Unknown code at position");
+}
 
 // TDOO:
 // My idea of this is
 // We have top level blocks and lower level blocks ...
 // Then we parse them ...
-fn parrse_if_block(parser: *Parser) !ErrorIfBLock {
+fn parrse_if_block(parser: *Parser) IfBlockError {
     var parser_var = parser;
 
     if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), "if")) {
@@ -125,12 +143,23 @@ fn parrse_if_block(parser: *Parser) !ErrorIfBLock {
 
         const start_symbol = parser_var.get_next_symbol();
         if (std.mem.eql(u8, start_symbol, "{")) {
+            var body = std.ArrayList(BaseBlocks).init(std.heap.page_allocator);
+
             // While we don't see a "}" we are inside a assembly block
             while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
                 // Okay now we can load in other blocks ... Like assembly blocks
-                _ = try parse_assembly_block(parser);
+                const assembly: BaseBlocks = get_base_block(parser);
+                body.append(assembly) catch |err| {
+                    switch (err) {
+                        OutOfMemoryError.OutOfMemory => {
+                            return IfBlockError.Null;
+                        },
+                    }
+                };
             }
-            return .{ .IfBlock = IfBlock{ .cmp = CompareBlock{ .expr_1 = 0, .expr_2 = 0 } } };
+            _ = parser_var.get_next_symbol();
+
+            return .{ .IfBlock = IfBlock{ .cmp = CompareBlock{ .expr_1 = 0, .expr_2 = 0 }, .body = body } };
         }
     }
     return .{ .Null = {} };
@@ -141,7 +170,9 @@ const ErrorOrBlock = union(enum) {
     Null: void,
 };
 
-fn parse_assembly_block(parser: *Parser) !ErrorOrBlock {
+const OutOfMemoryError = error{OutOfMemory};
+
+fn parse_assembly_block(parser: *Parser) ErrorOrBlock {
     var parser_var = parser;
 
     if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), "assembly")) {
@@ -153,14 +184,35 @@ fn parse_assembly_block(parser: *Parser) !ErrorOrBlock {
         if (std.mem.eql(u8, currentSymbol, "assembly") and std.mem.eql(u8, nextSymbol, "{")) {
             // While we don't see a "}" we are inside a assembly block
             while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
+
                 // Opcodes I hope  ...
                 const value = parser_var.get_next_symbol();
 
                 // Opcode metadata
                 var opcodeMap = std.StringHashMap(Opcodemetdata).init(std.heap.page_allocator);
-                try opcodeMap.put("STOP", Opcodemetdata{ .opcode = 0x00 });
-                try opcodeMap.put("PUSH0", Opcodemetdata{ .opcode = 0x5F });
-                try opcodeMap.put("ADD", Opcodemetdata{ .opcode = 0x01 });
+                opcodeMap.put("STOP", Opcodemetdata{ .opcode = 0x00 }) catch |err| {
+                    switch (err) {
+                        OutOfMemoryError.OutOfMemory => {
+                            return ErrorOrBlock.Null;
+                        },
+                    }
+                };
+
+                opcodeMap.put("PUSH0", Opcodemetdata{ .opcode = 0x5F }) catch |err| {
+                    switch (err) {
+                        OutOfMemoryError.OutOfMemory => {
+                            return ErrorOrBlock.Null;
+                        },
+                    }
+                };
+
+                opcodeMap.put("ADD", Opcodemetdata{ .opcode = 0x01 }) catch |err| {
+                    switch (err) {
+                        OutOfMemoryError.OutOfMemory => {
+                            return ErrorOrBlock.Null;
+                        },
+                    }
+                };
 
                 const opcodeType = opcodeMap.get(value);
 
@@ -169,9 +221,17 @@ fn parse_assembly_block(parser: *Parser) !ErrorOrBlock {
                     @panic("Something went wrong! Unknown opcode");
                 }
 
-                try opcodes.append(Opcode.init(value, opcodeType.?.opcode));
-                return .{ .AssemblyBlock = AssemblyBlock.init(opcodes) };
+                opcodes.append(Opcode.init(value, opcodeType.?.opcode)) catch |err| {
+                    switch (err) {
+                        OutOfMemoryError.OutOfMemory => {
+                            return ErrorOrBlock.Null;
+                        },
+                    }
+                };
             }
+            _ = parser_var.get_next_symbol();
+
+            return .{ .AssemblyBlock = AssemblyBlock.init(opcodes) };
         }
     }
     return .{ .Null = {} };
