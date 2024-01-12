@@ -10,6 +10,8 @@ pub fn get_tokens(value: []const u8) ![][]const u8 {
     const end_block: u8 = '{';
     const split_opcodes: u8 = ';';
     const start_of_comment: u8 = '/';
+    const start_of_parameter: u8 = '(';
+    const end_of_parameter: u8 = ')';
 
     var tokens = std.ArrayList([]const u8).init(std.heap.page_allocator);
 
@@ -29,7 +31,7 @@ pub fn get_tokens(value: []const u8) ![][]const u8 {
                 is_inside_comment = false;
                 token_start = i + 1;
             }
-        } else if (c == space or c == new_line or c == start_block or c == end_block or c == split_opcodes) {
+        } else if (c == space or c == new_line or c == start_block or c == end_block or c == split_opcodes or c == start_of_parameter or c == end_of_parameter) {
             if (i != token_start) {
                 const token_slice: []const u8 = value[token_start..i];
                 try tokens.append(token_slice);

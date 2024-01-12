@@ -1,0 +1,9 @@
+if(sighash == 0xdeadbeef){
+    assembly {
+        PUSH0;
+    }
+} else {
+    assembly {
+        STOP;
+    }
+}
