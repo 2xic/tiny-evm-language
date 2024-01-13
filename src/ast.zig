@@ -1,16 +1,14 @@
 // assembly ->
 const std = @import("std");
 
-const Opcodemetdata = struct {
-    opcode: u8,
-};
+const OpcodesMap = @import("./opcodes.zig");
 
 const Opcode = struct {
     name: []const u8, // Field with the name
-    opcode: u8,
+    opcode: u32,
     // arguments: [][]const u8, // Field with the name
 
-    pub fn init(name: []const u8, opcode: u8) Opcode {
+    pub fn init(name: []const u8, opcode: u32) Opcode {
         return Opcode{
             .name = name,
             .opcode = opcode,
@@ -27,8 +25,8 @@ pub const AssemblyBlock = struct {
 };
 
 pub const CompareBlock = struct {
-    expr_1: u8,
-    expr_2: u8,
+    expr_1: []const u8,
+    expr_2: []const u8,
 };
 
 pub const IfBlock = struct {
@@ -134,11 +132,12 @@ fn parrse_if_block(parser: *Parser) IfBlockError {
         _ = _if_name;
         // TODO
         const expr_1 = parser_var.get_next_symbol();
-        _ = expr_1;
         const op = parser_var.get_next_symbol();
-        _ = op;
+        // Assert that it is a equal ?
+        if (!std.mem.eql(u8, op, "==")) {
+            @panic("Expected === ");
+        }
         const expr_2 = parser_var.get_next_symbol();
-        _ = expr_2;
         // Then add CMP op
 
         const start_symbol = parser_var.get_next_symbol();
@@ -159,7 +158,7 @@ fn parrse_if_block(parser: *Parser) IfBlockError {
             }
             _ = parser_var.get_next_symbol();
 
-            return .{ .IfBlock = IfBlock{ .cmp = CompareBlock{ .expr_1 = 0, .expr_2 = 0 }, .body = body } };
+            return .{ .IfBlock = IfBlock{ .cmp = CompareBlock{ .expr_1 = expr_1, .expr_2 = expr_2 }, .body = body } };
         }
     }
     return .{ .Null = {} };
@@ -189,30 +188,7 @@ fn parse_assembly_block(parser: *Parser) ErrorOrBlock {
                 const value = parser_var.get_next_symbol();
 
                 // Opcode metadata
-                var opcodeMap = std.StringHashMap(Opcodemetdata).init(std.heap.page_allocator);
-                opcodeMap.put("STOP", Opcodemetdata{ .opcode = 0x00 }) catch |err| {
-                    switch (err) {
-                        OutOfMemoryError.OutOfMemory => {
-                            return ErrorOrBlock.Null;
-                        },
-                    }
-                };
-
-                opcodeMap.put("PUSH0", Opcodemetdata{ .opcode = 0x5F }) catch |err| {
-                    switch (err) {
-                        OutOfMemoryError.OutOfMemory => {
-                            return ErrorOrBlock.Null;
-                        },
-                    }
-                };
-
-                opcodeMap.put("ADD", Opcodemetdata{ .opcode = 0x01 }) catch |err| {
-                    switch (err) {
-                        OutOfMemoryError.OutOfMemory => {
-                            return ErrorOrBlock.Null;
-                        },
-                    }
-                };
+                var opcodeMap = OpcodesMap.Opcodes.init().OpcodesMap;
 
                 const opcodeType = opcodeMap.get(value);
 

@@ -19,11 +19,12 @@ zig build --summary all
 ```
 
 ## Test 
+
 ```
 zig build test
 ```
 
 
+
 ## Nice Resources used 
 - https://nathancraddock.com/blog/thoughts-on-zig-test/
-

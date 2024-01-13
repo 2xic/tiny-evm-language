@@ -21,7 +21,7 @@ pub fn main() !void {
     const results = try tokenizer.get_tokens(content);
     const assembly = try ast.get_get_ast(results);
 
-    output.print_assembly_block(assembly);
+    try output.print_assembly_block(assembly);
 }
 
 pub fn test_func() usize {
