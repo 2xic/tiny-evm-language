@@ -1,0 +1,7 @@
+function push_stack {
+    assembly {
+        PUSH0;
+    }
+}
+
+// TODO: Add the call 

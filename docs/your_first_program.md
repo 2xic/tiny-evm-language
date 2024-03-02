@@ -11,3 +11,7 @@ assembly {
 
 This will just `PUSH0` onto the stack.
 
+Run the the program with
+```bash
+./zig-out/bin/cli programs/your_first_program.golf
+```

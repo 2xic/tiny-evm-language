@@ -22,7 +22,7 @@ fn u8ToHexStr(
     return [2]u8{ u8ToHexDigit(n >> 4), u8ToHexDigit(n & 0x0F) };
 }
 
-pub fn print_assembly_block(blocks: std.ArrayList(ast.BaseBlocks)) !void {
+pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks)) !void {
     std.debug.print("=================================\n", .{});
 
     var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
@@ -47,14 +47,24 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.BaseBlocks)) !void {
     std.debug.print("=================================\n", .{});
 }
 
-fn parse_nested_blocks(block: ast.BaseBlocks, pointer: *std.ArrayList(u8)) !void {
+fn parse_nested_blocks(block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8)) !void {
     switch (block) {
-        ast.BaseBlocks.IfBlock => |if_body| {
+        ast.GlobalBaseBlocks.IfBlock => |if_body| {
             var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
 
             // If blocks can have nested blocks ....
             for (if_body.body.items) |b_block| {
-                try parse_nested_blocks(b_block, &bytescodes);
+                switch (b_block) {
+                    ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
+                        try parse_nested_blocks(ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &bytescodes);
+                    },
+                    ast.BaseBlocks.IfBlock => |assemblyBlock| {
+                        try parse_nested_blocks(ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &bytescodes);
+                    },
+                    ast.BaseBlocks.Null => {
+                        @panic("what");
+                    },
+                }
             }
 
             // Prepare for the jump conditonlas
@@ -104,7 +114,7 @@ fn parse_nested_blocks(block: ast.BaseBlocks, pointer: *std.ArrayList(u8)) !void
                 }
             }
         },
-        ast.BaseBlocks.AssemblyBlock => |assembly_block| {
+        ast.GlobalBaseBlocks.AssemblyBlock => |assembly_block| {
             for (assembly_block.opcodes.items) |c| {
                 const value = c.opcode;
 
@@ -121,7 +131,8 @@ fn parse_nested_blocks(block: ast.BaseBlocks, pointer: *std.ArrayList(u8)) !void
                 }
             }
         },
-        ast.BaseBlocks.Null => {},
+        ast.GlobalBaseBlocks.FunctionBlock => {},
+        ast.GlobalBaseBlocks.Null => {},
     }
 }
 

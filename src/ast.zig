@@ -40,9 +40,27 @@ pub const IfBlockError = union(enum) {
     Null: void,
 };
 
+pub const FunctionBlock = struct {
+    name: []const u8,
+    // This could also ohld AssemblyBlocks ...
+    body: std.ArrayList(BaseBlocks),
+};
+
+pub const FunctionBlockError = union(enum) {
+    FunctionBlock: FunctionBlock,
+    Null: void,
+};
+
 pub const BaseBlocks = union(enum) {
     IfBlock: IfBlock,
     AssemblyBlock: AssemblyBlock,
+    Null: void,
+};
+
+pub const GlobalBaseBlocks = union(enum) {
+    IfBlock: IfBlock,
+    AssemblyBlock: AssemblyBlock,
+    FunctionBlock: FunctionBlock,
     Null: void,
 };
 
@@ -70,7 +88,7 @@ const Parser = struct {
     }
 };
 
-pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(BaseBlocks) {
+pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
     // First get tokens ... Then we need to compare that against all the next blocks
     for (entries, 0..) |entry, i| {
         std.debug.print("token ({}) == {s} \n", .{ i, entry });
@@ -80,11 +98,34 @@ pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(BaseBlocks) {
 
     var parser = Parser.init(entries);
 
-    var opcodes = std.ArrayList(BaseBlocks).init(std.heap.page_allocator);
+    var opcodes = std.ArrayList(GlobalBaseBlocks).init(std.heap.page_allocator);
     var oldIndex = parser.currentIndex;
     while (parser.currentIndex + 1 < entries.len) {
-        const opcode: BaseBlocks = get_base_block(&parser);
-        try opcodes.append(opcode);
+        const function: FunctionBlockError = get_function_block(&parser);
+        switch (function) {
+            FunctionBlockError.FunctionBlock => |assemblyBlock| {
+                try opcodes.append(GlobalBaseBlocks{ .FunctionBlock = assemblyBlock });
+                std.debug.print("SSSS\n", .{});
+            },
+            FunctionBlockError.Null => {
+                parser.currentIndex = oldIndex;
+                std.debug.print("FAILED?\n", .{});
+                std.debug.print("index == {} / {} \n", .{ .val = parser.currentIndex, .aa = entries.len });
+
+                const opcode: BaseBlocks = get_base_block(&parser);
+                switch (opcode) {
+                    BaseBlocks.AssemblyBlock => |assemblyBlock| {
+                        try opcodes.append(GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock });
+                    },
+                    BaseBlocks.IfBlock => |assemblyBlock| {
+                        try opcodes.append(GlobalBaseBlocks{ .IfBlock = assemblyBlock });
+                    },
+                    BaseBlocks.Null => {
+                        @panic("what");
+                    },
+                }
+            },
+        }
         if (oldIndex == parser.currentIndex) {
             @panic("what");
         }
@@ -92,6 +133,42 @@ pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(BaseBlocks) {
     }
 
     return opcodes;
+}
+
+fn get_function_block(parser: *Parser) FunctionBlockError {
+    var parser_var = parser;
+
+    if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), "function")) {
+        const _function_def = parser_var.get_next_symbol();
+        _ = _function_def;
+
+        const _function_name = parser_var.get_next_symbol();
+
+        const start_symbol = parser_var.get_next_symbol();
+        if (std.mem.eql(u8, start_symbol, "{")) {
+            var body = std.ArrayList(BaseBlocks).init(std.heap.page_allocator);
+
+            // While we don't see a "}" we are inside a assembly block
+            while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
+                // Okay now we can load in other blocks ... Like assembly blocks
+                const assembly: BaseBlocks = get_base_block(parser);
+                std.debug.print("BLOCK\n", .{});
+
+                body.append(assembly) catch |err| {
+                    switch (err) {
+                        OutOfMemoryError.OutOfMemory => {
+                            return FunctionBlockError.Null;
+                        },
+                    }
+                };
+            }
+            // Read out the }
+            _ = parser_var.get_next_symbol();
+
+            return .{ .FunctionBlock = FunctionBlock{ .name = _function_name, .body = body } };
+        }
+    }
+    return .{ .Null = {} };
 }
 
 fn get_base_block(_parser: *Parser) BaseBlocks {
