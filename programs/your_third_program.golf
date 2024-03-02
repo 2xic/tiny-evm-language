@@ -6,5 +6,3 @@ function push_stack {
 }
 
 push_stack;
-
-// TODO: Add the call 

@@ -21,5 +21,6 @@ compare_output() {
 # First test 
 compare_output "./programs/your_first_program.golf" "5f"
 compare_output "./programs/your_second_program.golf" "5f3560e01c63deadbeef14600f57005b5f"
+compare_output "./programs/your_third_program.golf" "6007565b5f50565b586007016003565b"
 
 echo "Good compiler :)"
