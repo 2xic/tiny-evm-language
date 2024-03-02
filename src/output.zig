@@ -22,13 +22,36 @@ fn u8ToHexStr(
     return [2]u8{ u8ToHexDigit(n >> 4), u8ToHexDigit(n & 0x0F) };
 }
 
+const CaseInsensitiveContext = struct {
+    pub fn hash(_: CaseInsensitiveContext, s: []const u8) u64 {
+        var key = s;
+        var buf: [64]u8 = undefined;
+        var h = std.hash.Wyhash.init(0);
+        while (key.len >= 64) {
+            const lower = std.ascii.lowerString(buf[0..], key[0..64]);
+            h.update(lower);
+            key = key[64..];
+        }
+
+        if (key.len > 0) {
+            const lower = std.ascii.lowerString(buf[0..key.len], key);
+            h.update(lower);
+        }
+        return h.final();
+    }
+
+    pub fn eql(_: CaseInsensitiveContext, a: []const u8, b: []const u8) bool {
+        return std.ascii.eqlIgnoreCase(a, b);
+    }
+};
+
 pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks)) !void {
     std.debug.print("=================================\n", .{});
 
     var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
-
+    var function_mappings = std.HashMap([]const u8, u32, CaseInsensitiveContext, 80).init(std.heap.page_allocator);
     for (blocks.items) |block| {
-        try parse_nested_blocks(block, &bytescodes);
+        try parse_nested_blocks(&function_mappings, block, &bytescodes);
     }
 
     _ = try std.fs.cwd().createFile("./output.txt", .{});
@@ -47,7 +70,7 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks)) !void {
     std.debug.print("=================================\n", .{});
 }
 
-fn parse_nested_blocks(block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8)) !void {
+fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInsensitiveContext, 80), block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8)) !void {
     switch (block) {
         ast.GlobalBaseBlocks.IfBlock => |if_body| {
             var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
@@ -56,10 +79,13 @@ fn parse_nested_blocks(block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8))
             for (if_body.body.items) |b_block| {
                 switch (b_block) {
                     ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
-                        try parse_nested_blocks(ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &bytescodes);
                     },
                     ast.BaseBlocks.IfBlock => |assemblyBlock| {
-                        try parse_nested_blocks(ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &bytescodes);
+                    },
+                    ast.BaseBlocks.FunctionCall => |assemblyBlock| {
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &bytescodes);
                     },
                     ast.BaseBlocks.Null => {
                         @panic("what");
@@ -106,9 +132,9 @@ fn parse_nested_blocks(block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8))
                 //  PUSH1 0 // Offset to jump to ... Needs to be loaded after the JUMPI + 1
                 //  JUMPI
                 // Falls thorugh for the next block.
+                // TODO: Clean this ?
 
                 try print_value(conditionals, pointer);
-                // TODO: Clean this ?
                 for (bytescodes.items) |item| {
                     try pointer.append(item);
                 }
@@ -131,8 +157,82 @@ fn parse_nested_blocks(block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8))
                 }
             }
         },
-        ast.GlobalBaseBlocks.FunctionBlock => {},
+        ast.GlobalBaseBlocks.FunctionBlock => |function| {
+            // Create a new function buffer
+            // We will use this to find the location later
+            // First generate the function size
+            // Insert jump over it
+            var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
+            for (function.body.items) |b_block| {
+                switch (b_block) {
+                    ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &bytescodes);
+                    },
+                    ast.BaseBlocks.IfBlock => |assemblyBlock| {
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &bytescodes);
+                    },
+                    ast.BaseBlocks.FunctionCall => |assemblyBlock| {
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &bytescodes);
+                    },
+                    ast.BaseBlocks.Null => {
+                        @panic("what");
+                    },
+                }
+            }
+            // var sizeOfBytecode = bytescodes.items.len;
+            const map = opcodesMaps.Opcodes.init().OpcodesMap;
+            try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
+            try opcode_2_pointer(@as(u32, @intCast(bytescodes.items.len)) + 5, pointer);
+            try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
+
+            try function_mappings.put(function.name, @as(u32, @intCast(pointer.items.len)));
+            try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
+
+            for (bytescodes.items) |item| {
+                try pointer.append(item);
+            }
+            try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
+            try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
+        },
+        ast.GlobalBaseBlocks.FunctionCall => |function| {
+            // HM, we cannot generate this before the end of the buffer ...
+            // Since there is things happening in between ...
+            //
+            // [normal opcodes]
+            // JMP + Size of offset
+            // [Function offset]
+            // [HALT]
+            //
+
+            const offset = function_mappings.get(function.name);
+            if (offset) |v| {
+                // got value "v"
+                const map = opcodesMaps.Opcodes.init().OpcodesMap;
+                try opcode_2_pointer(map.get("PC").?.opcode, pointer); // Push the PC so we can return to it
+                try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
+                try opcode_2_pointer(7, pointer);
+                try opcode_2_pointer(map.get("ADD").?.opcode, pointer); // Push the PC so we can return to it
+
+                try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
+                try opcode_2_pointer(@as(u32, @intCast(v)), pointer);
+                try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
+                try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
+            } else {
+                // doesn't exist
+            }
+        },
         ast.GlobalBaseBlocks.Null => {},
+    }
+}
+
+fn opcode_2_pointer(opcode: u32, pointer: *std.ArrayList(u8)) !void {
+    const numBytes = countBytes(opcode);
+
+    for (0..numBytes) |index| {
+        const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
+        const number = opcode;
+        var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
+        try pointer.append(byteValue);
     }
 }
 
@@ -145,15 +245,7 @@ fn print_value(value: [13]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8
         if (c.?.opcode == 0) {
             try pointer.append(0);
         } else {
-            //  std.debug.print("{x:0>2}", .{c.?.opcode});
-            const numBytes = countBytes(c.?.opcode);
-
-            for (0..numBytes) |index| {
-                const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
-                const number = c.?.opcode;
-                var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
-                try pointer.append(byteValue);
-            }
+            try opcode_2_pointer(c.?.opcode, pointer);
         }
     }
 }

@@ -46,6 +46,14 @@ pub const FunctionBlock = struct {
     body: std.ArrayList(BaseBlocks),
 };
 
+pub const FunctionCall = struct {
+    name: []const u8,
+};
+pub const FunctionCallError = union(enum) {
+    FunctionCall: FunctionCall,
+    Null: void,
+};
+
 pub const FunctionBlockError = union(enum) {
     FunctionBlock: FunctionBlock,
     Null: void,
@@ -54,6 +62,7 @@ pub const FunctionBlockError = union(enum) {
 pub const BaseBlocks = union(enum) {
     IfBlock: IfBlock,
     AssemblyBlock: AssemblyBlock,
+    FunctionCall: FunctionCall,
     Null: void,
 };
 
@@ -61,6 +70,7 @@ pub const GlobalBaseBlocks = union(enum) {
     IfBlock: IfBlock,
     AssemblyBlock: AssemblyBlock,
     FunctionBlock: FunctionBlock,
+    FunctionCall: FunctionCall,
     Null: void,
 };
 
@@ -71,9 +81,10 @@ fn initEmptyOpcodeSlice() []Opcode {
 const Parser = struct {
     entries: [][]const u8,
     currentIndex: usize,
+    functions: std.ArrayList([]const u8),
 
-    pub fn init(entries: [][]const u8) Parser {
-        return Parser{ .entries = entries, .currentIndex = 0 };
+    pub fn init(entries: [][]const u8, functions: std.ArrayList([]const u8)) Parser {
+        return Parser{ .entries = entries, .currentIndex = 0, .functions = functions };
     }
 
     pub fn get_next_symbol(self: *Parser) []const u8 {
@@ -86,6 +97,11 @@ const Parser = struct {
         const symbol = self.entries[self.currentIndex];
         return symbol;
     }
+
+    pub fn addFunctions(self: *Parser, functionName: []const u8) !void {
+        try self.functions.append(functionName);
+        return;
+    }
 };
 
 pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
@@ -96,21 +112,25 @@ pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
 
     std.debug.print("=====END====\n", .{});
 
-    var parser = Parser.init(entries);
+    var functions = std.ArrayList([]const u8).init(std.heap.page_allocator);
+    var parser = Parser.init(entries, functions);
 
     var opcodes = std.ArrayList(GlobalBaseBlocks).init(std.heap.page_allocator);
     var oldIndex = parser.currentIndex;
-    while (parser.currentIndex + 1 < entries.len) {
+    while (parser.currentIndex < entries.len) {
         const function: FunctionBlockError = get_function_block(&parser);
+        std.debug.print("Current symbol: {s} ({}) \n", .{ .val = parser.entries[parser.currentIndex], .index = parser.currentIndex });
+
         switch (function) {
             FunctionBlockError.FunctionBlock => |assemblyBlock| {
+                std.debug.print("Function block?\n", .{});
                 try opcodes.append(GlobalBaseBlocks{ .FunctionBlock = assemblyBlock });
-                std.debug.print("SSSS\n", .{});
+                try parser.addFunctions(assemblyBlock.name);
             },
             FunctionBlockError.Null => {
                 parser.currentIndex = oldIndex;
-                std.debug.print("FAILED?\n", .{});
-                std.debug.print("index == {} / {} \n", .{ .val = parser.currentIndex, .aa = entries.len });
+                std.debug.print("General blocks\n", .{});
+                //                std.debug.print("index == {} / {} \n", .{ .val = parser.currentIndex, .aa = entries.len });
 
                 const opcode: BaseBlocks = get_base_block(&parser);
                 switch (opcode) {
@@ -120,14 +140,19 @@ pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
                     BaseBlocks.IfBlock => |assemblyBlock| {
                         try opcodes.append(GlobalBaseBlocks{ .IfBlock = assemblyBlock });
                     },
+                    BaseBlocks.FunctionCall => |assemblyBlock| {
+                        try opcodes.append(GlobalBaseBlocks{ .FunctionCall = assemblyBlock });
+                    },
                     BaseBlocks.Null => {
                         @panic("what");
                     },
                 }
             },
         }
+        std.debug.print("Parser index == {} / {} \n", .{ .val = parser.currentIndex, .aa = entries.len });
+
         if (oldIndex == parser.currentIndex) {
-            @panic("what");
+            @panic("Index was unchanged");
         }
         oldIndex = parser.currentIndex;
     }
@@ -188,7 +213,15 @@ fn get_base_block(_parser: *Parser) BaseBlocks {
                     return (.{ .IfBlock = block });
                 },
                 IfBlockError.Null => {
-                    @panic("Something went wrong! Unknown code at position");
+                    parser.currentIndex = currentPosition;
+                    const function_call_value = parse_function_call(parser);
+                    switch (function_call_value) {
+                        FunctionCallError.FunctionCall => |block| {
+                            std.debug.print("Found it :)", .{});
+                            return .{ .FunctionCall = block };
+                        },
+                        FunctionCallError.Null => {},
+                    }
                 },
             }
             @panic("Something went wrong! Unknown code at position");
@@ -238,6 +271,27 @@ fn parrse_if_block(parser: *Parser) IfBlockError {
             return .{ .IfBlock = IfBlock{ .cmp = CompareBlock{ .expr_1 = expr_1, .expr_2 = expr_2 }, .body = body } };
         }
     }
+    return .{ .Null = {} };
+}
+
+fn parse_function_call(parser: *Parser) FunctionCallError {
+    var parser_var = parser;
+    for (parser.functions.items) |elem| {
+        if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), elem)) {
+            var name = parser_var.get_next_symbol();
+
+            return .{ .FunctionCall = FunctionCall{ .name = name } };
+        }
+    }
+    std.debug.print("NO match!", .{});
+    //    //if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), elem)) {
+    //    //    //// const _if_name = parser_var.get_next_symbol();
+    //    //    ////  _ = _if_name;
+    //    //    //// TODO
+    //    //    //std.debug.print("OH MAN \n", {});
+    //    //    ////  return .{ .FunctionCall = FunctionCall{ .name = elem } };
+    //    //}
+    //}
     return .{ .Null = {} };
 }
 

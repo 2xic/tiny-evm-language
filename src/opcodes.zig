@@ -19,6 +19,14 @@ pub const Opcodes = struct {
             }
         };
 
+        opcodeMap.put("POP", Opcodemetdata{ .opcode = 0x50, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+
         opcodeMap.put("PUSH0", Opcodemetdata{ .opcode = 0x5F, .inlineArgumentSize = 0 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
@@ -66,7 +74,23 @@ pub const Opcodes = struct {
             }
         };
 
+        opcodeMap.put("JUMP", Opcodemetdata{ .opcode = 0x56, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+
         opcodeMap.put("JUMPI", Opcodemetdata{ .opcode = 0x57, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+
+        opcodeMap.put("PC", Opcodemetdata{ .opcode = 0x58, .inlineArgumentSize = 0 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
                     @panic("Out of memory");
