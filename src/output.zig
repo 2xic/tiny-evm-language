@@ -144,9 +144,6 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             for (assembly_block.opcodes.items) |c| {
                 const value = c.opcode;
 
-                //                std.debug.print("{x:0>2}", .{value});
-                //                pointer.index += 1;
-                //  try pointer.append(value);
                 const numBytes = countBytes(value);
 
                 for (0..numBytes) |index| {
@@ -154,6 +151,15 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                     const number = value;
                     var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
                     try pointer.append(byteValue);
+                }
+
+                for (c.arguments) |val| {
+                    std.debug.print("token == {s} \n", .{val});
+
+                    var value2 = parseToU8(val) catch {
+                        @panic("what");
+                    };
+                    try pointer.append(value2);
                 }
             }
         },
@@ -248,6 +254,22 @@ fn print_value(value: [13]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8
             try opcode_2_pointer(c.?.opcode, pointer);
         }
     }
+}
+
+pub fn parseToU8(input: []const u8) !u8 {
+    var num: i32 = undefined;
+
+    const is_hex = input.len > 2 and input[0] == '0' and (input[1] == 'x' or input[1] == 'X');
+    if (is_hex) {
+        num = try std.fmt.parseInt(i32, input[2..], 16);
+    } else {
+        num = try std.fmt.parseInt(i32, input, 10);
+    }
+    // Ensure the parsed number is within the range of u8
+    if (num < 0 or num > 255) {
+        return error.InvalidValue;
+    }
+    return @as(u8, @intCast(num));
 }
 
 fn countBytes(number: u32) u8 {

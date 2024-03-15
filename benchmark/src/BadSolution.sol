@@ -1,32 +1,27 @@
-// TODO: REplace this with address to our new optimized code.
+// TODO: Re-create this with address to our new optimized code.
 interface AirdropLike {
     function airdropETH(
         address[] calldata recivers,
         uint256[] calldata value
     ) external payable;
-
+    /*
     function airdropERC20(
         Erc20Like token,
         address[] calldata recivers,
         uint256[] calldata data,
         uint256 totalTokens
     ) external;
+    */
 }
 
 interface Erc20Like {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function approve(address spender, uint256 amount) external returns (bool);
-
     function increaseAllowance(address target, uint256 amount) external;
-
     function allowance(address owner, address spender) external view returns (uint256);
-
-    function balanceOf(address target) external returns (uint256);
-
-    
+    function balanceOf(address target) external returns (uint256);    
 }
-
 
 contract BadSolution is AirdropLike {
     address dropper; 
@@ -43,7 +38,7 @@ contract BadSolution is AirdropLike {
             a.transfer(value[i]);
         }
     }
-
+    /*
     function airdropERC20(
         Erc20Like token,
         address[] calldata recivers,
@@ -55,4 +50,5 @@ contract BadSolution is AirdropLike {
             token.transfer(recivers[i], data[i]);
         }
     }
+    */
 }

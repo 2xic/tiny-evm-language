@@ -6,13 +6,10 @@ const OpcodesMap = @import("./opcodes.zig");
 const Opcode = struct {
     name: []const u8, // Field with the name
     opcode: u32,
-    // arguments: [][]const u8, // Field with the name
+    arguments: [][]const u8, // Field with the name
 
-    pub fn init(name: []const u8, opcode: u32) Opcode {
-        return Opcode{
-            .name = name,
-            .opcode = opcode,
-        };
+    pub fn init(name: []const u8, opcode: u32, arguments: [][]const u8) Opcode {
+        return Opcode{ .name = name, .opcode = opcode, .arguments = arguments };
     }
 };
 
@@ -317,6 +314,7 @@ fn parse_assembly_block(parser: *Parser) ErrorOrBlock {
 
                 // Opcodes I hope  ...
                 const value = parser_var.get_next_symbol();
+                std.debug.print("token == {s} \n", .{value});
 
                 // Opcode metadata
                 var opcodeMap = OpcodesMap.Opcodes.init().OpcodesMap;
@@ -328,7 +326,20 @@ fn parse_assembly_block(parser: *Parser) ErrorOrBlock {
                     @panic("Something went wrong! Unknown opcode");
                 }
 
-                opcodes.append(Opcode.init(value, opcodeType.?.opcode)) catch |err| {
+                const allocator = std.heap.page_allocator;
+                var array: [][]const u8 = allocator.alloc([]const u8, opcodeType.?.inlineArgumentSize) catch |err| {
+                    switch (err) {
+                        OutOfMemoryError.OutOfMemory => {
+                            return ErrorOrBlock.Null;
+                        },
+                    }
+                };
+
+                for (0..opcodeType.?.inlineArgumentSize) |index| {
+                    array[index] = parser_var.get_next_symbol();
+                }
+
+                opcodes.append(Opcode.init(value, opcodeType.?.opcode, array)) catch |err| {
                     switch (err) {
                         OutOfMemoryError.OutOfMemory => {
                             return ErrorOrBlock.Null;

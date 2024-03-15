@@ -1,0 +1,8 @@
+function push_stack {
+    assembly {
+        PUSH1 0xff;
+        POP;
+    }
+}
+
+push_stack;

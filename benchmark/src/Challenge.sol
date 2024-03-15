@@ -1,4 +1,5 @@
 // COPIED FROM https://github.com/paradigmxyz/paradigm-ctf-2023/blob/main/dropper/challenge/project/src/Challenge.sol
+// ONLY KEPT THE ETH TRANSFER PART OF THE CHALLENGE FOR NOW.
 
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
@@ -79,6 +80,7 @@ contract Challenge {
             gasUsed += (start - end);
         }
 
+        /*
         uint256 totalTokens;
         for (uint256 i = 0; i < 16; i++) {
             (seed, recipients[i]) = randomAddress(seed);
@@ -103,34 +105,8 @@ contract Challenge {
 
             gasUsed += (start - end);
         }
-
-        uint256 startId;
-        (seed, startId) = randomUint(seed, 0, type(uint256).max);
-        for (uint256 i = 0; i < 16; i++) {
-            (seed, recipients[i]) = randomAddress(seed);
-            amounts[i] = startId++;
-
-            require(CHALLENGE_NFT.balanceOf(recipients[i]) == 0, "unlucky");
-            CHALLENGE_NFT.mint(amounts[i]);
-        }
-
-        /*
-        CHALLENGE_NFT.setApprovalForAll(address(dropper), true);
-
-        {
-            uint256 start = gasleft();
-            dropper.airdropERC721(address(CHALLENGE_NFT), recipients, amounts);
-            uint256 end = gasleft();
-
-            for (uint256 i = 0; i < 16; i++) {
-                require(CHALLENGE_NFT.ownerOf(amounts[i]) == recipients[i], "failed to airdrop nft");
-            }
-
-            gasUsed += (start - end);
-        }
-
-        CHALLENGE_NFT.setApprovalForAll(address(dropper), false);
         */
+
         if (gasUsed < bestScore) {
             bestScore = gasUsed;
             bestImplementation = implementation;
