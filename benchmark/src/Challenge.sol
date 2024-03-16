@@ -12,6 +12,7 @@ import {console2} from "forge-std/Test.sol";
 interface AirdropLike {
     function airdropETH(address[] calldata, uint256[] calldata) external payable;
     function airdropERC20(address, address[] calldata, uint256[] calldata, uint256) external;
+    function airdropERC721(address nft,address[] calldata recivers,uint256[] calldata data) external;
 }
 
 contract ChallengeERC20 is Ownable, ERC20 {
@@ -20,26 +21,6 @@ contract ChallengeERC20 is Ownable, ERC20 {
     function mint(uint256 amount) external onlyOwner {
         _mint(msg.sender, amount);
     }
-
-        /*
-    function transferFrom(address from, address to, uint256 value) public override returns (bool) {
-        //    0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f
-        //    0x2e234DAe75C793f67A35089C9d99245E1C58470b
-        //    43068581527655180666
-        console2.log("IM CALLIGN TRANSFER FROM");
-        console2.log(from);
-        console2.log(to);
-        console2.log(value);
-        revert("BAD CALL");
-    }
-    */
-/*
-    function transfer(address to, uint256 value)  public override returns (bool) {
-        console2.log("IM CALLIGN TRANSFER ");
-        console2.log(to);
-        console2.log(value);
-        revert("BAD CALL");
-    }*/
 }
 
 contract ChallengeERC721 is Ownable, ERC721 {
@@ -125,6 +106,37 @@ contract Challenge {
             }
 
             gasUsed += (start - end);
+        }
+
+        uint256 startId;
+        (seed, startId) = randomUint(seed, 0, type(uint256).max);
+        for (uint256 i = 0; i < 16; i++) {
+            (seed, recipients[i]) = randomAddress(seed);
+            amounts[i] = startId++;
+
+            require(CHALLENGE_NFT.balanceOf(recipients[i]) == 0, "unlucky");
+            CHALLENGE_NFT.mint(amounts[i]);
+        }
+
+        CHALLENGE_NFT.setApprovalForAll(address(dropper), true);
+
+        {
+            uint256 start = gasleft();
+            dropper.airdropERC721(address(CHALLENGE_NFT), recipients, amounts);
+            uint256 end = gasleft();
+
+            for (uint256 i = 0; i < 16; i++) {
+                require(CHALLENGE_NFT.ownerOf(amounts[i]) == recipients[i], "failed to airdrop nft");
+            }
+
+            gasUsed += (start - end);
+        }
+
+        CHALLENGE_NFT.setApprovalForAll(address(dropper), false);
+
+        if (gasUsed < bestScore) {
+            bestScore = gasUsed;
+            bestImplementation = implementation;
         }
 
         if (gasUsed < bestScore) {

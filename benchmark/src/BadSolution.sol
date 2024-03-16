@@ -1,4 +1,3 @@
-// TODO: Re-create this with address to our new optimized code.
 interface AirdropLike {
     function airdropETH(
         address[] calldata recivers,
@@ -11,6 +10,12 @@ interface AirdropLike {
         uint256[] calldata data,
         uint256 totalTokens
     ) external;
+
+    function airdropERC721(
+        Erc721Like nft,
+        address[] calldata recivers,
+        uint256[] calldata data
+    ) external;
 }
 
 interface Erc20Like {
@@ -19,7 +24,16 @@ interface Erc20Like {
     function approve(address spender, uint256 amount) external returns (bool);
     function increaseAllowance(address target, uint256 amount) external;
     function allowance(address owner, address spender) external view returns (uint256);
-    function balanceOf(address target) external returns (uint256);    
+    function balanceOf(address target) external returns (uint256);   
+}
+
+interface Erc721Like {
+    function transferFrom(
+        address _from,
+        address _to,
+        uint256 _tokenId
+    ) external payable;
+    function getApproved(uint256 tokenId) external returns (address);
 }
 
 contract BadSolution is AirdropLike {
@@ -47,6 +61,16 @@ contract BadSolution is AirdropLike {
         token.transferFrom(address(dropper), address(this), _totalTokens);
         for (uint256 i = 0; i < recivers.length; i++) {
             token.transfer(recivers[i], data[i]);
+        }
+    }
+
+    function airdropERC721(
+        Erc721Like nft,
+        address[] calldata recivers,
+        uint256[] calldata data
+    ) external {        
+        for (uint256 i = 0; i < 16; i++) {
+            nft.transferFrom(dropper, recivers[i], data[i]);
         }
     }
 }

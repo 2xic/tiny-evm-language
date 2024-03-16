@@ -222,24 +222,12 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                     opcodesMaps.Opcodemetdata{ .opcode = 0xe0, .inlineArgumentSize = 0 },
                     map.get("SHR"),
                     map.get("PUSH4"),
-                    //TODO: THIS SHOULD NOT BE HARDCODED.
                     opcodesMaps.Opcodemetdata{ .opcode = sighashValue, .inlineArgumentSize = 0 },
                     map.get("EQ"),
-                    //  map.get("PUSH1"),
-                    // JUMPDEST -> Current opcodes + 15
-                    // 14 * Times number of if blocks nested I think .... FU
-                    // opcodesMaps.Opcodemetdata{ .opcode = 3 + elseBodySize, .inlineArgumentSize = 0 },
-                    // map.get("PC"),
-                    // map.get("ADD"),
-                    // map.get("JUMPI"),
-                    // [ELSE block]
-                    //                    map.get("STOP"), // WE STOP IT FOR NOW, LATER FIX -> Fall through to the else block.
-                    //                    // [JUMPDEST]
-                    //                    map.get("JUMPDEST"), // WE STOP IT FOR NOW, LATER FIX
                 };
                 try print_value(conditionals, pointer);
 
-                try push_opcode_2_number(elseBodySize + get_push_number(elseBodySize), pointer);
+                try push_opcode_2_number(elseBodySize + 3, pointer);
                 try opcode_2_pointer(map.get("PC").?.opcode, pointer);
                 try opcode_2_pointer(map.get("ADD").?.opcode, pointer);
                 try opcode_2_pointer(map.get("JUMPI").?.opcode, pointer);
