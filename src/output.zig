@@ -138,6 +138,41 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 for (bytescodes.items) |item| {
                     try pointer.append(item);
                 }
+            } else if (std.mem.eql(u8, cmp_expression.expr_1, "stack_top_is_zero")) {
+                // This meanas we need to push onto more opcodes onto the stack
+                // TODO: I kinda want this to be processed by some other step so I can write in assembly here ...
+                const map = opcodesMaps.Opcodes.init().OpcodesMap;
+                // TODO First add this block to load the sighash
+                // PUSH0
+                // CALLDATALOAD
+                // PUSH1 0xe0
+                // SHR
+                //
+
+                const conditionals: [5]?opcodesMaps.Opcodemetdata = .{
+                    map.get("PUSH1"),
+                    // JUMPDEST
+                    opcodesMaps.Opcodemetdata{ .opcode = @as(u32, @intCast((pointer.items.len))) + 8, .inlineArgumentSize = 0 },
+                    map.get("JUMPI"),
+                    map.get("STOP"), // WE STOP IT FOR NOW, LATER FIX
+                    map.get("JUMPDEST"), // WE STOP IT FOR NOW, LATER FIX
+                };
+                // JUMPDEST
+                //  PUSH0
+                //  CALLDATALOAD
+                //  PUSH1 0xe0
+                //  SHR
+                //  PUSH4 0xdeadbeef
+                //  EQ
+                //  PUSH1 0 // Offset to jump to ... Needs to be loaded after the JUMPI + 1
+                //  JUMPI
+                // Falls thorugh for the next block.
+                // TODO: Clean this ?
+
+                try print_value_four(conditionals, pointer);
+                for (bytescodes.items) |item| {
+                    try pointer.append(item);
+                }
             }
         },
         ast.GlobalBaseBlocks.AssemblyBlock => |assembly_block| {
@@ -168,6 +203,15 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             // We will use this to find the location later
             // First generate the function size
             // Insert jump over it
+
+            const map = opcodesMaps.Opcodes.init().OpcodesMap;
+            // We should always store the init location of the function so we can look that up in a recursvie function
+            // try function_mappings.put(function.name, @as(u32, @intCast(pointer.items.len)));
+            // try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
+
+            const approx_jump_location = @as(u32, @intCast(pointer.items.len)) + 3;
+            try function_mappings.put(function.name, approx_jump_location);
+
             var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
             for (function.body.items) |b_block| {
                 switch (b_block) {
@@ -185,13 +229,12 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                     },
                 }
             }
-            // var sizeOfBytecode = bytescodes.items.len;
-            const map = opcodesMaps.Opcodes.init().OpcodesMap;
+            // NOTE: This should probably only be added for the head blocks ?
             try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
-            try opcode_2_pointer(@as(u32, @intCast(bytescodes.items.len)) + 5, pointer);
+            const jump_location = @as(u32, @intCast(bytescodes.items.len)) + 5;
+            try opcode_2_pointer(jump_location, pointer);
             try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
-
-            try function_mappings.put(function.name, @as(u32, @intCast(pointer.items.len)));
+            // USED TO BE HERE
             try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
 
             for (bytescodes.items) |item| {
@@ -211,20 +254,25 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             //
 
             const offset = function_mappings.get(function.name);
-            if (offset) |v| {
+            if (offset) |offset_value| {
+                const jump_location = @as(u32, @intCast(offset_value));
+                std.debug.print("COnstructing the function jump offset = {} \n", .{jump_location});
+
                 // got value "v"
                 const map = opcodesMaps.Opcodes.init().OpcodesMap;
+                // Push over to the return location
                 try opcode_2_pointer(map.get("PC").?.opcode, pointer); // Push the PC so we can return to it
                 try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
                 try opcode_2_pointer(7, pointer);
                 try opcode_2_pointer(map.get("ADD").?.opcode, pointer); // Push the PC so we can return to it
-
+                // Push on the function be called
                 try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
-                try opcode_2_pointer(@as(u32, @intCast(v)), pointer);
+                try opcode_2_pointer(jump_location, pointer);
                 try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
                 try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
             } else {
                 // doesn't exist
+                @panic("Function location not found :'( )");
             }
         },
         ast.GlobalBaseBlocks.Null => {},
@@ -234,15 +282,33 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
 fn opcode_2_pointer(opcode: u32, pointer: *std.ArrayList(u8)) !void {
     const numBytes = countBytes(opcode);
 
-    for (0..numBytes) |index| {
-        const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
-        const number = opcode;
-        var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
-        try pointer.append(byteValue);
+    if (opcode == 0) {
+        try pointer.append(0);
+    } else {
+        for (0..numBytes) |index| {
+            const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
+            const number = opcode;
+            var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
+            try pointer.append(byteValue);
+        }
     }
 }
 
 fn print_value(value: [13]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8)) !void {
+    for (value) |c| {
+        if (c == null) {
+            continue;
+        }
+
+        if (c.?.opcode == 0) {
+            try pointer.append(0);
+        } else {
+            try opcode_2_pointer(c.?.opcode, pointer);
+        }
+    }
+}
+
+fn print_value_four(value: [5]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8)) !void {
     for (value) |c| {
         if (c == null) {
             continue;

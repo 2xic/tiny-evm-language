@@ -79,9 +79,10 @@ const Parser = struct {
     entries: [][]const u8,
     currentIndex: usize,
     functions: std.ArrayList([]const u8),
+    functionsName: []const u8,
 
     pub fn init(entries: [][]const u8, functions: std.ArrayList([]const u8)) Parser {
-        return Parser{ .entries = entries, .currentIndex = 0, .functions = functions };
+        return Parser{ .entries = entries, .currentIndex = 0, .functions = functions, .functionsName = "" };
     }
 
     pub fn get_next_symbol(self: *Parser) []const u8 {
@@ -97,6 +98,11 @@ const Parser = struct {
 
     pub fn addFunctions(self: *Parser, functionName: []const u8) !void {
         try self.functions.append(functionName);
+        return;
+    }
+
+    pub fn setCurrentFunctionName(self: *Parser, functionName: []const u8) !void {
+        self.functionsName = functionName;
         return;
     }
 };
@@ -165,6 +171,8 @@ fn get_function_block(parser: *Parser) FunctionBlockError {
         _ = _function_def;
 
         const _function_name = parser_var.get_next_symbol();
+
+        try parser_var.setCurrentFunctionName(_function_name);
 
         const start_symbol = parser_var.get_next_symbol();
         if (std.mem.eql(u8, start_symbol, "{")) {
@@ -273,6 +281,11 @@ fn parrse_if_block(parser: *Parser) IfBlockError {
 
 fn parse_function_call(parser: *Parser) FunctionCallError {
     var parser_var = parser;
+    if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), parser_var.functionsName)) {
+        var name = parser_var.get_next_symbol();
+        return .{ .FunctionCall = FunctionCall{ .name = name } };
+    }
+
     for (parser.functions.items) |elem| {
         if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), elem)) {
             var name = parser_var.get_next_symbol();
