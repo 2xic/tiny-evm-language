@@ -1,0 +1,26 @@
+// We need a way to get passed in dynamic variables part of the construction
+// We could just have some variables definition and use that 
+// 
+// Another challenge is that we need to implement the encoding of the arguments for the ABI calls
+// address is 32 bytes
+// _totalTOkens is 32 bytes also 
+// 4 byte signature can be hardcoded and loaded into the memory before each call
+// 
+// nft transfers and erc20 transfers all follow this pattern
+// 
+
+// HOW WE WILL IMPLEMENT STORAGE VARIABLES
+// 1. THey are added to the end of the CODECOPY
+// 2. We register it in storage, users deals with the rest.
+// 3. I can make arguments be handled by the user inputs 
+// 4. Maybe I can do this without needing any user inputs ? 
+// 5. Call CALLDATASIZE and then iterate until it hits the end, but meh that isn't using good gas usage.
+// 6. I think the users should just link in the variables instead.
+
+
+// SHOULD JUST LOAD IN THE 
+assembly {
+    PUSH0;
+    SLOAD;
+}
+

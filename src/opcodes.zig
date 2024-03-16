@@ -239,6 +239,21 @@ pub const Opcodes = struct {
                 },
             }
         };
+
+        opcodeMap.put("SLOAD", Opcodemetdata{ .opcode = 0x54, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+        opcodeMap.put("SSTORE", Opcodemetdata{ .opcode = 0x55, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
         return Opcodes{ .OpcodesMap = opcodeMap };
     }
 };

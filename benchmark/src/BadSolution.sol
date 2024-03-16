@@ -38,6 +38,7 @@ contract BadSolution is AirdropLike {
             a.transfer(value[i]);
         }
     }
+
     /*
     function airdropERC20(
         Erc20Like token,

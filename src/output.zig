@@ -45,7 +45,7 @@ const CaseInsensitiveContext = struct {
     }
 };
 
-pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compileDeployment: bool) !void {
+pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compileDeployment: bool, constructorArguments: u32) !void {
     std.debug.print("=================================\n", .{});
 
     var runtimeCode = std.ArrayList(u8).init(std.heap.page_allocator);
@@ -103,6 +103,24 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
         try opcode_2_pointer(0, &deploymentCode);
         try opcode_2_pointer(map.get("CODECOPY").?.opcode, &deploymentCode);
 
+        // NOW WE LOAD IN CONSTRUCTOR ARGUMENTS IF NEEDED ? WE LOAD IN 32 BYTES CHUNK! WE DON'T CARE WHAT IT IS
+        const deploymentSize = @as(u32, @intCast((deploymentCode.items.len)));
+        const endOfOpcodeSize: u32 = deploymentSize + 5;
+        for (0..constructorArguments) |index| {
+            const indexu32 = @as(u32, @intCast((index)));
+            // Load in the constructor value
+            const loadSizeOpcodes: u32 = 6;
+            const locationOfArugment = endOfOpcodeSize + constructorArguments * loadSizeOpcodes + 32 * indexu32;
+            try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+            try opcode_2_pointer(locationOfArugment, &deploymentCode);
+            try opcode_2_pointer(map.get("CALLDATALOAD").?.opcode, &deploymentCode);
+
+            // Load in the key = index of the constructor argument'
+            try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+            try opcode_2_pointer(indexu32, &deploymentCode);
+            try opcode_2_pointer(map.get("SSTORE").?.opcode, &deploymentCode);
+        }
+
         // RETURN THE DEPLOYED CODE
         // SIZE
         try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
@@ -111,6 +129,7 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
         try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
         try opcode_2_pointer(0, &deploymentCode);
         try opcode_2_pointer(map.get("RETURN").?.opcode, &deploymentCode);
+        // [ Here we could potentially have constructor arguments .... ]
 
         std.debug.print("\n", .{});
         std.debug.print("Deployed code: \n", .{});
