@@ -10,8 +10,9 @@
 
 
 function readEntry {
-    // We have no while loops, we need to recursivly call this function 
+    // We have no while loops, we need to recursively call this function 
 
+    // TODO: Instead of doing MLOAD, we can just reuse the stack
     assembly {
         // CMP that we are not at the end yet
         PUSH0;
@@ -53,12 +54,12 @@ function readEntry {
             CALLDATALOAD;
             // ^ second entry
 
-            PUSH1 0; // retSize
-            PUSH1 0; // retOffset
-            PUSH1 0; // argSize
-            PUSH1 0; // argOffset
-            DUP7; // value
-            DUP7; // address
+            PUSH0;   // retSize
+            PUSH0;   // retOffset
+            PUSH0;   // argSize
+            PUSH0;   // argOffset
+            DUP5;    // value
+            DUP7;    // address
             GAS;
             CALL;
         }

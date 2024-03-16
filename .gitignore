@@ -2,3 +2,5 @@ zig-out
 zig-cache
 utils
 output.txt
+runtime.txt
+deploy.txt

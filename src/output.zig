@@ -45,19 +45,21 @@ const CaseInsensitiveContext = struct {
     }
 };
 
-pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks)) !void {
+pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compileDeployment: bool) !void {
     std.debug.print("=================================\n", .{});
 
-    var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
+    var runtimeCode = std.ArrayList(u8).init(std.heap.page_allocator);
     var function_mappings = std.HashMap([]const u8, u32, CaseInsensitiveContext, 80).init(std.heap.page_allocator);
     for (blocks.items) |block| {
-        try parse_nested_blocks(&function_mappings, block, &bytescodes);
+        try parse_nested_blocks(&function_mappings, block, &runtimeCode);
     }
 
-    _ = try std.fs.cwd().createFile("./output.txt", .{});
-    const file = try std.fs.cwd().openFile("./output.txt", .{ .mode = std.fs.File.OpenMode.read_write });
+    _ = try std.fs.cwd().createFile("./runtime.txt", .{});
+    const file = try std.fs.cwd().openFile("./runtime.txt", .{ .mode = std.fs.File.OpenMode.read_write });
 
-    for (bytescodes.items) |value| {
+    std.debug.print("\n", .{});
+    std.debug.print("Runtime code: \n", .{});
+    for (runtimeCode.items) |value| {
         std.debug.print("{x:0>2}", .{value});
         const aaaa = u8ToHexStr(value);
 
@@ -67,6 +69,66 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks)) !void {
     _ = file.close();
 
     std.debug.print("\n", .{});
+
+    if (compileDeployment == true) {
+        // 1. Run a code copy of the section where we placed our runtime code
+        // 2. Jump to the end.
+        // 3. Return that code.
+        // Victory ?
+        // [Jump]
+        // [Runtime code]
+        // [Return logic]
+        var deploymentCode = std.ArrayList(u8).init(std.heap.page_allocator);
+        const map = opcodesMaps.Opcodes.init().OpcodesMap;
+        const sizeRUntime = @as(u32, @intCast((runtimeCode.items.len)));
+
+        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+        // + 2 because of PUSH1 and the JUMP
+        try opcode_2_pointer(sizeRUntime + 3, &deploymentCode);
+        try opcode_2_pointer(map.get("JUMP").?.opcode, &deploymentCode);
+        // [Jump target after the runtime code]
+        for (runtimeCode.items) |value| {
+            try deploymentCode.append(value);
+        }
+        try opcode_2_pointer(map.get("JUMPDEST").?.opcode, &deploymentCode);
+
+        // SIZE
+        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+        try opcode_2_pointer(sizeRUntime, &deploymentCode);
+        // OFFSET
+        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+        try opcode_2_pointer(3, &deploymentCode);
+        // DEST OFFSET
+        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+        try opcode_2_pointer(0, &deploymentCode);
+        try opcode_2_pointer(map.get("CODECOPY").?.opcode, &deploymentCode);
+
+        // RETURN THE DEPLOYED CODE
+        // SIZE
+        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+        try opcode_2_pointer(sizeRUntime, &deploymentCode);
+        // OFFSET
+        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
+        try opcode_2_pointer(0, &deploymentCode);
+        try opcode_2_pointer(map.get("RETURN").?.opcode, &deploymentCode);
+
+        std.debug.print("\n", .{});
+        std.debug.print("Deployed code: \n", .{});
+
+        _ = try std.fs.cwd().createFile("./deploy.txt", .{});
+        const deployFile = try std.fs.cwd().openFile("./deploy.txt", .{ .mode = std.fs.File.OpenMode.read_write });
+
+        for (deploymentCode.items) |value| {
+            std.debug.print("{x:0>2}", .{value});
+            const aaaa = u8ToHexStr(value);
+
+            _ = try deployFile.write(aaaa[0..2]);
+        }
+        std.debug.print("\n", .{});
+        std.debug.print("\n", .{});
+
+        _ = deployFile.close();
+    }
     std.debug.print("=================================\n", .{});
 }
 

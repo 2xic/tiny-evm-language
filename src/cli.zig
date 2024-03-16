@@ -16,16 +16,21 @@ pub fn main() !void {
     }
 
     const file = args[1];
+    // Note: default is to output the runtime code
+    var compileDeployment = false;
+    if (args.len >= 3) {
+        const compileKind = args[2];
+        if (std.mem.eql(u8, compileKind, "deploy")) {
+            compileDeployment = true;
+        }
+    }
 
     const content = try utils.read_file(file);
     const results = try tokenizer.get_tokens(content);
     const assembly = try ast.get_get_ast(results);
 
-    try output.print_assembly_block(assembly);
-}
-
-pub fn test_func() usize {
-    return 10;
+    std.debug.print("Optional argument: {?}\n", .{compileDeployment});
+    try output.print_assembly_block(assembly, compileDeployment);
 }
 
 test "test" {

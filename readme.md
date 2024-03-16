@@ -2,6 +2,11 @@ I just want to create a simple golfing language that solves [dropper](https://gi
 
 See [docs](./docs/readme.md) for some example programs
 
+
+![Bytecode is the way](http://web.archive.org/web/20221229034822if_/https://pbs.twimg.com/profile_banners/706491515527364610/1663160614/1500x500)
+
+(photo from [@high_byte](https://twitter.com/high_byte))
+
 ## Install (Ubuntu)
 
 ```

@@ -7,6 +7,7 @@ pragma solidity ^0.8.13;
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+import {console2} from "forge-std/Test.sol";
 
 interface AirdropLike {
     function airdropETH(address[] calldata, uint256[] calldata) external payable;
@@ -54,12 +55,13 @@ contract Challenge {
         uint256 gasUsed = 0;
 
         uint256 seed = uint256(blockhash(block.number - 1));
-
-        address[] memory recipients = new address[](16);
-        uint256[] memory amounts = new uint[](16);
+        
+        uint256 size = 16;
+        address[] memory recipients = new address[](size);
+        uint256[] memory amounts = new uint[](size);
 
         uint256 totalEth;
-        for (uint256 i = 0; i < 16; i++) {
+        for (uint256 i = 0; i < size; i++) {
             (seed, recipients[i]) = randomAddress(seed);
             (seed, amounts[i]) = randomUint(seed, 1 ether, 5 ether);
 
@@ -70,10 +72,12 @@ contract Challenge {
 
         {
             uint256 start = gasleft();
+           // bytes memory returndata = abi.encodeWithSignature("airdropETH(address[],uint256[])", recipients, amounts);
+
             dropper.airdropETH{value: totalEth}(recipients, amounts);
             uint256 end = gasleft();
 
-            for (uint256 i = 0; i < 16; i++) {
+            for (uint256 i = 0; i < size; i++) {
                 require(recipients[i].balance == amounts[i], "failed to airdrop eth");
             }
 
@@ -82,7 +86,7 @@ contract Challenge {
 
         /*
         uint256 totalTokens;
-        for (uint256 i = 0; i < 16; i++) {
+        for (uint256 i = 0; i < size; i++) {
             (seed, recipients[i]) = randomAddress(seed);
             (seed, amounts[i]) = randomUint(seed, 1 ether, 5 ether);
 
@@ -99,7 +103,7 @@ contract Challenge {
             dropper.airdropERC20(address(CHALLENGE_TOKEN), recipients, amounts, totalTokens);
             uint256 end = gasleft();
 
-            for (uint256 i = 0; i < 16; i++) {
+            for (uint256 i = 0; i < size; i++) {
                 require(CHALLENGE_TOKEN.balanceOf(recipients[i]) == amounts[i], "failed to airdrop token");
             }
 
@@ -116,6 +120,7 @@ contract Challenge {
     }
 
     function getScore() external view returns (uint256) {
+        
         return bestScore;
     }
 }
