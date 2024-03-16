@@ -154,19 +154,37 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
 fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInsensitiveContext, 80), block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8)) !void {
     switch (block) {
         ast.GlobalBaseBlocks.IfBlock => |if_body| {
-            var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
+            var ifBodyBytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
+            var elseBodyBytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
 
             // If blocks can have nested blocks ....
             for (if_body.body.items) |b_block| {
                 switch (b_block) {
                     ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &ifBodyBytescodes);
                     },
                     ast.BaseBlocks.IfBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &ifBodyBytescodes);
                     },
                     ast.BaseBlocks.FunctionCall => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &ifBodyBytescodes);
+                    },
+                    ast.BaseBlocks.Null => {
+                        @panic("what");
+                    },
+                }
+            }
+            // Else body could have nested blocks ....
+            for (if_body.elseBody.items) |b_block| {
+                switch (b_block) {
+                    ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &elseBodyBytescodes);
+                    },
+                    ast.BaseBlocks.IfBlock => |assemblyBlock| {
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &elseBodyBytescodes);
+                    },
+                    ast.BaseBlocks.FunctionCall => |assemblyBlock| {
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &elseBodyBytescodes);
                     },
                     ast.BaseBlocks.Null => {
                         @panic("what");
@@ -187,6 +205,13 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 // SHR
                 //
 
+                const sighashValue = parseToU32(cmp_expression.expr_2) catch {
+                    @panic("what");
+                };
+
+                //      const pointerSize = @as(u32, @intCast((pointer.items.len)));
+                const elseBodySize = @as(u32, @intCast((elseBodyBytescodes.items.len)));
+
                 const conditionals: [13]?opcodesMaps.Opcodemetdata = .{
                     map.get("PUSH0"),
                     map.get("CALLDATALOAD"),
@@ -194,15 +219,22 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                     opcodesMaps.Opcodemetdata{ .opcode = 0xe0, .inlineArgumentSize = 0 },
                     map.get("SHR"),
                     map.get("PUSH4"),
-                    opcodesMaps.Opcodemetdata{ .opcode = 0xdeadbeef, .inlineArgumentSize = 0 },
+                    //TODO: THIS SHOULD NOT BE HARDCODED.
+                    opcodesMaps.Opcodemetdata{ .opcode = sighashValue, .inlineArgumentSize = 0 },
                     map.get("EQ"),
                     map.get("PUSH1"),
-                    // JUMPDEST
-                    opcodesMaps.Opcodemetdata{ .opcode = @as(u32, @intCast((pointer.items.len))) + 15, .inlineArgumentSize = 0 },
+                    // JUMPDEST -> Current opcodes + 15
+                    // 14 * Times number of if blocks nested I think .... FU
+                    opcodesMaps.Opcodemetdata{ .opcode = 3 + elseBodySize, .inlineArgumentSize = 0 },
+                    map.get("PC"),
+                    map.get("ADD"),
                     map.get("JUMPI"),
-                    map.get("STOP"), // WE STOP IT FOR NOW, LATER FIX
-                    map.get("JUMPDEST"), // WE STOP IT FOR NOW, LATER FIX
+                    // [ELSE block]
+                    //                    map.get("STOP"), // WE STOP IT FOR NOW, LATER FIX -> Fall through to the else block.
+                    //                    // [JUMPDEST]
+                    //                    map.get("JUMPDEST"), // WE STOP IT FOR NOW, LATER FIX
                 };
+
                 // JUMPDEST
                 //  PUSH0
                 //  CALLDATALOAD
@@ -216,7 +248,23 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 // TODO: Clean this ?
 
                 try print_value(conditionals, pointer);
-                for (bytescodes.items) |item| {
+
+                if (elseBodyBytescodes.items.len == 0) {
+                    std.debug.print("OH NO I FOUND NO ELSE BODY :'(\n", .{});
+                    try opcode_2_pointer(map.get("STOP").?.opcode, pointer);
+                } else {
+                    std.debug.print("I ADD ELSE BODY :D\n", .{});
+                    for (elseBodyBytescodes.items) |item| {
+                        try pointer.append(item);
+                        std.debug.print("OPCODE === {} \n", .{item});
+                    }
+                    // JUMP PAST THE NEXT BLOCK
+
+                }
+                // TODO: THEN I ACTUALLY HAVE TO JUMP PAST THE NEXT IF BLOCK? YES YES ?
+
+                try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
+                for (ifBodyBytescodes.items) |item| {
                     try pointer.append(item);
                 }
             } else if (std.mem.eql(u8, cmp_expression.expr_1, "stack_top_is_zero")) {
@@ -251,7 +299,7 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 // TODO: Clean this ?
 
                 try print_value_four(conditionals, pointer);
-                for (bytescodes.items) |item| {
+                for (ifBodyBytescodes.items) |item| {
                     try pointer.append(item);
                 }
             }
@@ -262,11 +310,15 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
 
                 const numBytes = countBytes(value);
 
-                for (0..numBytes) |index| {
-                    const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
-                    const number = value;
-                    var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
-                    try pointer.append(byteValue);
+                if (numBytes == 0) {
+                    try pointer.append(0);
+                } else {
+                    for (0..numBytes) |index| {
+                        const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
+                        const number = value;
+                        var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
+                        try pointer.append(byteValue);
+                    }
                 }
 
                 for (c.arguments) |val| {
@@ -403,15 +455,22 @@ fn print_value_four(value: [5]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayLis
     }
 }
 
-pub fn parseToU8(input: []const u8) !u8 {
-    var num: i32 = undefined;
+pub fn parseToU32(input: []const u8) !u32 {
+    var num: u32 = undefined;
 
     const is_hex = input.len > 2 and input[0] == '0' and (input[1] == 'x' or input[1] == 'X');
     if (is_hex) {
-        num = try std.fmt.parseInt(i32, input[2..], 16);
+        num = try std.fmt.parseInt(u32, input[2..], 16);
     } else {
-        num = try std.fmt.parseInt(i32, input, 10);
+        num = try std.fmt.parseInt(u32, input, 10);
     }
+    return num;
+}
+
+pub fn parseToU8(input: []const u8) !u8 {
+    var num: u32 = parseToU32(input) catch {
+        @panic("what");
+    };
     // Ensure the parsed number is within the range of u8
     if (num < 0 or num > 255) {
         return error.InvalidValue;

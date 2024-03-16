@@ -1,0 +1,30 @@
+// ISSUE WITH THE CURRENT DESIGN
+// WE LOAD IN POINTER SIZES AFTER THE NESTED LOOP SO I THINK WE MISCALCULATE THE ENDING OFFSET
+
+if (sighash == 0xDEADBEEF) {
+    // Call the function to read out all the entries
+    assembly {
+        PUSH1 1;
+        PUSH0;
+        SSTORE;
+        STOP;
+    }
+} else {
+    if (sighash == 0xDEADC0DE) {
+        // Call the function to read out all the entries
+        assembly {
+            PUSH1 42;
+            PUSH0;
+            STOP;
+            SSTORE;
+            STOP;
+        }
+    } else {
+        assembly {
+            PUSH1 43;
+            PUSH0;
+            SSTORE;
+            STOP;
+        }
+    }
+}

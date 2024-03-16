@@ -30,6 +30,7 @@ pub const IfBlock = struct {
     // This could also ohld AssemblyBlocks ...
     cmp: CompareBlock,
     body: std.ArrayList(BaseBlocks),
+    elseBody: std.ArrayList(BaseBlocks),
 };
 
 pub const IfBlockError = union(enum) {
@@ -83,6 +84,10 @@ const Parser = struct {
 
     pub fn init(entries: [][]const u8, functions: std.ArrayList([]const u8)) Parser {
         return Parser{ .entries = entries, .currentIndex = 0, .functions = functions, .functionsName = "" };
+    }
+
+    pub fn hasNextSymbol(self: *Parser) bool {
+        return (self.currentIndex + 1) < self.entries.len;
     }
 
     pub fn get_next_symbol(self: *Parser) []const u8 {
@@ -273,7 +278,28 @@ fn parrse_if_block(parser: *Parser) IfBlockError {
             }
             _ = parser_var.get_next_symbol();
 
-            return .{ .IfBlock = IfBlock{ .cmp = CompareBlock{ .expr_1 = expr_1, .expr_2 = expr_2 }, .body = body } };
+            var elseBody = std.ArrayList(BaseBlocks).init(std.heap.page_allocator);
+
+            // THE NEXT BLOCK COULD BE AN ELSE !!!!
+            if (parser_var.hasNextSymbol()) {
+                if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), "else")) {
+                    _ = parser_var.get_next_symbol();
+                    _ = parser_var.get_next_symbol();
+                    while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
+                        const assembly: BaseBlocks = get_base_block(parser);
+                        elseBody.append(assembly) catch |err| {
+                            switch (err) {
+                                OutOfMemoryError.OutOfMemory => {
+                                    return IfBlockError.Null;
+                                },
+                            }
+                        };
+                    }
+                    _ = parser_var.get_next_symbol();
+                }
+            }
+
+            return .{ .IfBlock = IfBlock{ .cmp = CompareBlock{ .expr_1 = expr_1, .expr_2 = expr_2 }, .body = body, .elseBody = elseBody } };
         }
     }
     return .{ .Null = {} };
