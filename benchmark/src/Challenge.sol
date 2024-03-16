@@ -1,5 +1,5 @@
 // COPIED FROM https://github.com/paradigmxyz/paradigm-ctf-2023/blob/main/dropper/challenge/project/src/Challenge.sol
-// ONLY KEPT THE ETH TRANSFER PART OF THE CHALLENGE FOR NOW.
+// ONLY KEPT THE ETH + ERC20 TRANSFER PART OF THE CHALLENGE FOR NOW.
 
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
@@ -20,7 +20,8 @@ contract ChallengeERC20 is Ownable, ERC20 {
     function mint(uint256 amount) external onlyOwner {
         _mint(msg.sender, amount);
     }
-    /*
+
+        /*
     function transferFrom(address from, address to, uint256 value) public override returns (bool) {
         //    0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f
         //    0x2e234DAe75C793f67A35089C9d99245E1C58470b
@@ -32,6 +33,13 @@ contract ChallengeERC20 is Ownable, ERC20 {
         revert("BAD CALL");
     }
     */
+/*
+    function transfer(address to, uint256 value)  public override returns (bool) {
+        console2.log("IM CALLIGN TRANSFER ");
+        console2.log(to);
+        console2.log(value);
+        revert("BAD CALL");
+    }*/
 }
 
 contract ChallengeERC721 is Ownable, ERC721 {
@@ -108,9 +116,6 @@ contract Challenge {
         CHALLENGE_TOKEN.approve(address(dropper), totalTokens);
         CHALLENGE_TOKEN.mint(totalTokens);
         dropper.airdropERC20(address(CHALLENGE_TOKEN), recipients, amounts, totalTokens);
-        console2.log("BALANCE:");
-        console2.log(CHALLENGE_TOKEN.balanceOf(address(dropper)));
-        /*
         {
             uint256 start = gasleft();
             uint256 end = gasleft();
@@ -121,7 +126,6 @@ contract Challenge {
 
             gasUsed += (start - end);
         }
-        */
 
         if (gasUsed < bestScore) {
             bestScore = gasUsed;

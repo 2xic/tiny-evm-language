@@ -51,7 +51,7 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
     var runtimeCode = std.ArrayList(u8).init(std.heap.page_allocator);
     var function_mappings = std.HashMap([]const u8, u32, CaseInsensitiveContext, 80).init(std.heap.page_allocator);
     for (blocks.items) |block| {
-        try parse_nested_blocks(&function_mappings, block, &runtimeCode);
+        try parse_nested_blocks(&function_mappings, block, &runtimeCode, 0);
     }
 
     _ = try std.fs.cwd().createFile("./runtime.txt", .{});
@@ -154,7 +154,7 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
     std.debug.print("=================================\n", .{});
 }
 
-fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInsensitiveContext, 80), block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8)) !void {
+fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInsensitiveContext, 80), block: ast.GlobalBaseBlocks, pointer: *std.ArrayList(u8), additionalAdding: u32) !void {
     switch (block) {
         ast.GlobalBaseBlocks.IfBlock => |if_body| {
             var ifBodyBytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
@@ -164,13 +164,13 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             for (if_body.body.items) |b_block| {
                 switch (b_block) {
                     ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &ifBodyBytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &ifBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.IfBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &ifBodyBytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &ifBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.FunctionCall => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &ifBodyBytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &ifBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.Null => {
                         @panic("what");
@@ -181,13 +181,13 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             for (if_body.elseBody.items) |b_block| {
                 switch (b_block) {
                     ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &elseBodyBytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &elseBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.IfBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &elseBodyBytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &elseBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.FunctionCall => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &elseBodyBytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &elseBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.Null => {
                         @panic("what");
@@ -301,7 +301,9 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 //  JUMPI
                 // Falls thorugh for the next block.
                 // TODO: Clean this ?
-                try push_opcode_2_number(@as(u32, @intCast((pointer.items.len))) + 8, pointer);
+                const stack_is_zero_destination = additionalAdding + @as(u32, @intCast((pointer.items.len))) + 8;
+                std.debug.print("AAA {} \n", .{ .value = stack_is_zero_destination });
+                try push_opcode_2_number(stack_is_zero_destination, pointer);
 
                 try print_value_four(conditionals, pointer);
                 for (ifBodyBytescodes.items) |item| {
@@ -360,16 +362,18 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             try function_mappings.put(function.name, function_jumpdest_location);
 
             var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
+            const sizeOPcode = @as(u32, @intCast(pointer.items.len));
+
             for (function.body.items) |b_block| {
                 switch (b_block) {
                     ast.BaseBlocks.AssemblyBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .AssemblyBlock = assemblyBlock }, &bytescodes, sizeOPcode);
                     },
                     ast.BaseBlocks.IfBlock => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .IfBlock = assemblyBlock }, &bytescodes, sizeOPcode);
                     },
                     ast.BaseBlocks.FunctionCall => |assemblyBlock| {
-                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &bytescodes);
+                        try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &bytescodes, sizeOPcode);
                     },
                     ast.BaseBlocks.Null => {
                         @panic("what");
@@ -377,7 +381,6 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 }
             }
             // NOTE: This should probably only be added for the head blocks ?
-            const sizeOPcode = @as(u32, @intCast(pointer.items.len));
             const jump_location = sizeOPcode + @as(u32, @intCast(bytescodes.items.len)) + 5;
             if (256 < jump_location) {
                 @panic("WE DONT SUPPORT THIS FAR JUMP YET");

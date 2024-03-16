@@ -4,14 +4,13 @@ interface AirdropLike {
         address[] calldata recivers,
         uint256[] calldata value
     ) external payable;
-    /*
+
     function airdropERC20(
         Erc20Like token,
         address[] calldata recivers,
         uint256[] calldata data,
         uint256 totalTokens
     ) external;
-    */
 }
 
 interface Erc20Like {
@@ -46,8 +45,8 @@ contract BadSolution is AirdropLike {
         uint256 _totalTokens
     ) external {
         token.transferFrom(address(dropper), address(this), _totalTokens);
-/*        for (uint256 i = 0; i < recivers.length; i++) {
+        for (uint256 i = 0; i < recivers.length; i++) {
             token.transfer(recivers[i], data[i]);
-        }*/
+        }
     }
 }
