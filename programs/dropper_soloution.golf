@@ -1,0 +1,186 @@
+// First part of the dropper challenge is for us to be able to decode the function inputs
+// 0000000000000000000000000000000000000000000000000000000000000040 -> First entry location
+// 00000000000000000000000000000000000000000000000000000000000000a0 -> Second entry location
+// 0000000000000000000000000000000000000000000000000000000000000002 -> size
+// 00000000000000000000000000000000000000adc04c56bf30ac9d3c0aaf14dc -> Entry 1
+// 00000000000000000000000000000000000000adc04c56bf30ac9d3c0aaf14dc -> Entry 2
+// 0000000000000000000000000000000000000000000000000000000000000002 -> size
+// 000000000000000000000000000000000000000000000000000000000000002a -> Entry 1
+// 000000000000000000000000000000000000000000000000000000000000003e -> Entry 2
+
+
+function readTransferEntry {
+    // We have no while loops, we need to recursively call this function 
+
+    // TODO: Instead of doing MLOAD, we can just reuse the stack
+    assembly {
+        // CMP that we are not at the end yet
+        PUSH0;
+        MLOAD;
+        PUSH1 32;
+        MLOAD;
+        EQ;
+        ISZERO;
+    }
+
+    // Only walk into this function if it's close to the top .... 
+    if (stack_top_is_zero == 0){
+        // Need to re-enter the function until we are done.
+        assembly {
+            // Load in the data ? 
+            PUSH0;
+            MLOAD;
+            PUSH1 1;
+            ADD;
+            DUP1;
+            PUSH0;
+            MSTORE;
+
+            PUSH1 32;
+            MUL; 
+            // Load in first index
+            DUP1;
+            PUSH1 64;
+            MLOAD;
+            ADD;
+            CALLDATALOAD;
+            // ^ should be the first entry
+
+            // Load in the second entry 
+            DUP2;
+            PUSH1 96;
+            MLOAD;
+            ADD;
+            CALLDATALOAD;
+            // ^ second entry
+
+            PUSH0;   // retSize
+            PUSH0;   // retOffset
+            PUSH0;   // argSize
+            PUSH0;   // argOffset
+            DUP5;    // value
+            DUP7;    // address
+            GAS;
+            CALL;
+        }
+
+        readTransferEntry;
+    }
+}
+
+
+// function airdropETH(address[] calldata recivers,uint256[] calldata value)
+    
+if (sighash == 0xc1a38006) {
+    // if calldata 4 bytes == airdropETH
+    assembly {
+        // Size of the first array will match the second one so we use that to track the location.
+        PUSH0;
+        PUSH1 1; // Need to start at 
+        MSTORE; // Global index pointer 
+                
+        // Load in the first offset
+        PUSH1 4;
+        DUP1;
+        CALLDATALOAD;
+        ADD;
+        PUSH1 64;
+        MSTORE;    
+
+        //  0, 32 -> indexes
+        // 64, 96 -> Locations
+
+        // Now we also load in the size poitner to slot 2
+        PUSH1 36;
+        CALLDATALOAD;
+        PUSH1 4;
+        ADD;
+        PUSH1 96;
+        MSTORE; 
+
+        // Now we specify the length
+        PUSH1 64;
+        MLOAD;
+        CALLDATALOAD;
+        PUSH1 32;
+        MSTORE;
+    };
+
+    // Call the function to read out all the entries
+    readTransferEntry;
+} else {
+    // function airdropERC20(Erc20Like token,address[] calldata recivers,uint256[] calldata data,uint256 _totalTokens)
+    if (sighash == 0x82947abe) {
+        // First the setup step requires me to call the transferFrom on the 
+        assembly {
+            // LOAD IN THE DROPPER CONTRACT
+            PUSH32 0x23b872dd00000000000000000000000000000000000000000000000000000000;
+            PUSH0;
+            MSTORE;
+            // Load in the dropper contract stored in the constructor
+            PUSH0;
+            SLOAD;
+            PUSH1 4;
+            MSTORE;
+            // GET OUR CONTRACT
+            ADDRESS;
+            PUSH1 36;
+            MSTORE;
+            // Need to load in the last total supply of the CALLDATA
+            PUSH1 100;
+            CALLDATALOAD;
+            PUSH1 68;
+            MSTORE; 
+            // Now we can call the contract .... I love winning  
+
+            // Load in the token contract
+            PUSH1 4;
+            CALLDATALOAD;
+            // MEMORY SHOULD NOW BE [transferfrom sighash][dropper contract][our contract][total supply]
+            //                              4                 36          68               100
+            // We can now call the service
+            PUSH0;      // retSize
+            PUSH0;      // retOffset
+            PUSH1 128;  // argSize 
+            PUSH0;      // argOffset
+            PUSH0;      // value
+            DUP6;       // address
+            GAS;        // GAS
+            CALL;
+            STOP;
+        }
+    } else {
+        // SHOULD GET OUT THE SLOAD DATA TO SHOW THE USER
+        if (sighash == 0x2d4be470) {
+            assembly {
+                PUSH0;
+                SLOAD;
+                PUSH0;
+                MSTORE;
+                PUSH1 32;
+                PUSH0;
+                RETURN;
+            };
+        } else {
+            // set dropper -> Should load in data and store it 
+            if (sighash == 0x8c10f4fc) {
+                assembly {
+                    PUSH1 4;
+                    CALLDATALOAD;
+                    PUSH0;
+                    SSTORE;
+                    STOP;
+                }
+            }
+            else {
+                assembly {
+                    PUSH1 43;
+                    PUSH0;
+                    SSTORE;
+                    STOP;
+                }
+            }
+        }
+    }
+}
+

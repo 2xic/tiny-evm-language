@@ -66,7 +66,15 @@ pub const Opcodes = struct {
             }
         };
 
-        opcodeMap.put("PUSH4", Opcodemetdata{ .opcode = 0x63, .inlineArgumentSize = 4 }) catch |err| {
+        // NOTE: inlineArgumentSize is confusing here - FIX IT!
+        opcodeMap.put("PUSH4", Opcodemetdata{ .opcode = 0x63, .inlineArgumentSize = 1 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+        opcodeMap.put("PUSH32", Opcodemetdata{ .opcode = 0x7F, .inlineArgumentSize = 1 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
                     @panic("Out of memory");
@@ -98,6 +106,13 @@ pub const Opcodes = struct {
             }
         };
 
+        opcodeMap.put("SHL", Opcodemetdata{ .opcode = 0x1b, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
         opcodeMap.put("SHR", Opcodemetdata{ .opcode = 0x1c, .inlineArgumentSize = 0 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
@@ -248,6 +263,20 @@ pub const Opcodes = struct {
             }
         };
         opcodeMap.put("SSTORE", Opcodemetdata{ .opcode = 0x55, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+        opcodeMap.put("ADDRESS", Opcodemetdata{ .opcode = 0x30, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+        opcodeMap.put("REVERT", Opcodemetdata{ .opcode = 0x7D, .inlineArgumentSize = 0 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
                     @panic("Out of memory");

@@ -20,6 +20,18 @@ contract ChallengeERC20 is Ownable, ERC20 {
     function mint(uint256 amount) external onlyOwner {
         _mint(msg.sender, amount);
     }
+    /*
+    function transferFrom(address from, address to, uint256 value) public override returns (bool) {
+        //    0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f
+        //    0x2e234DAe75C793f67A35089C9d99245E1C58470b
+        //    43068581527655180666
+        console2.log("IM CALLIGN TRANSFER FROM");
+        console2.log(from);
+        console2.log(to);
+        console2.log(value);
+        revert("BAD CALL");
+    }
+    */
 }
 
 contract ChallengeERC721 is Ownable, ERC721 {
@@ -84,7 +96,6 @@ contract Challenge {
             gasUsed += (start - end);
         }
 
-        /*
         uint256 totalTokens;
         for (uint256 i = 0; i < size; i++) {
             (seed, recipients[i]) = randomAddress(seed);
@@ -94,13 +105,14 @@ contract Challenge {
 
             totalTokens += amounts[i];
         }
-
         CHALLENGE_TOKEN.approve(address(dropper), totalTokens);
         CHALLENGE_TOKEN.mint(totalTokens);
-
+        dropper.airdropERC20(address(CHALLENGE_TOKEN), recipients, amounts, totalTokens);
+        console2.log("BALANCE:");
+        console2.log(CHALLENGE_TOKEN.balanceOf(address(dropper)));
+        /*
         {
             uint256 start = gasleft();
-            dropper.airdropERC20(address(CHALLENGE_TOKEN), recipients, amounts, totalTokens);
             uint256 end = gasleft();
 
             for (uint256 i = 0; i < size; i++) {

@@ -314,20 +314,30 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                     try pointer.append(0);
                 } else {
                     for (0..numBytes) |index| {
-                        const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
-                        const number = value;
-                        var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
-                        try pointer.append(byteValue);
+                        try pointer.append(getByteNumber(value, index, numBytes));
                     }
                 }
 
                 for (c.arguments) |val| {
                     std.debug.print("token == {s} \n", .{val});
 
-                    var value2 = parseToU8(val) catch {
-                        @panic("what");
+                    var value2 = parseToU256(val) catch {
+                        @panic("what value is this");
                     };
-                    try pointer.append(value2);
+                    const numBytesValue = countBytes(value2);
+
+                    if (numBytesValue == 0) {
+                        try pointer.append(0);
+                    } else {
+                        for (0..numBytesValue) |index| {
+                            try pointer.append(getByteNumber(value2, index, numBytesValue));
+                        }
+                    }
+
+                    //              var value2 = parseToU8(val) catch {
+                    //                    @panic("what");
+                    //                  };
+                    //                    try pointer.append(value2);
                 }
             }
         },
@@ -455,20 +465,31 @@ fn print_value_four(value: [5]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayLis
     }
 }
 
-pub fn parseToU32(input: []const u8) !u32 {
-    var num: u32 = undefined;
+pub fn parseToU256(input: []const u8) !u256 {
+    var num: u256 = undefined;
 
     const is_hex = input.len > 2 and input[0] == '0' and (input[1] == 'x' or input[1] == 'X');
     if (is_hex) {
-        num = try std.fmt.parseInt(u32, input[2..], 16);
+        num = try std.fmt.parseInt(u256, input[2..], 16);
     } else {
-        num = try std.fmt.parseInt(u32, input, 10);
+        num = try std.fmt.parseInt(u256, input, 10);
     }
     return num;
 }
 
+pub fn parseToU32(input: []const u8) !u32 {
+    var num: u256 = parseToU256(input) catch {
+        @panic("what");
+    };
+    // Ensure the parsed number is within the range of u8
+    if (num < 0 or num > 4294967296) {
+        return error.InvalidValue;
+    }
+    return @as(u32, @intCast(num));
+}
+
 pub fn parseToU8(input: []const u8) !u8 {
-    var num: u32 = parseToU32(input) catch {
+    var num: u256 = parseToU256(input) catch {
         @panic("what");
     };
     // Ensure the parsed number is within the range of u8
@@ -478,12 +499,18 @@ pub fn parseToU8(input: []const u8) !u8 {
     return @as(u8, @intCast(num));
 }
 
-fn countBytes(number: u32) u8 {
+fn countBytes(number: u256) u8 {
     var count: u8 = 0;
-    var temp: u32 = number;
+    var temp: u256 = number;
     while (temp != 0) {
         count += 1;
         temp >>= 8;
     }
     return count;
+}
+
+fn getByteNumber(number: u256, index: usize, numBytes: u8) u8 {
+    const shift: u8 = @as(u8, @intCast((numBytes - index - 1) * 8));
+    var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
+    return byteValue;
 }

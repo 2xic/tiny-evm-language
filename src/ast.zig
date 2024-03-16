@@ -227,7 +227,7 @@ fn get_base_block(_parser: *Parser) BaseBlocks {
                     const function_call_value = parse_function_call(parser);
                     switch (function_call_value) {
                         FunctionCallError.FunctionCall => |block| {
-                            std.debug.print("Found it :)", .{});
+                            std.debug.print("Found it :)\n", .{});
                             return .{ .FunctionCall = block };
                         },
                         FunctionCallError.Null => {},
