@@ -65,6 +65,13 @@ pub const Opcodes = struct {
                 },
             }
         };
+        opcodeMap.put("PUSH2", Opcodemetdata{ .opcode = 0x61, .inlineArgumentSize = 1 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
 
         // NOTE: inlineArgumentSize is confusing here - FIX IT!
         opcodeMap.put("PUSH4", Opcodemetdata{ .opcode = 0x63, .inlineArgumentSize = 1 }) catch |err| {

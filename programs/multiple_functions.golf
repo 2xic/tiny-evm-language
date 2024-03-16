@@ -1,0 +1,37 @@
+function readTransferEntry {
+    assembly {
+        // CMP that we are not at the end yet
+        PUSH0;
+        MLOAD;
+        PUSH1 32;
+        MLOAD;
+        EQ;
+        ISZERO;
+        STOP;
+    }
+}
+
+
+function readERC20TransferEntry {
+    assembly {
+        PUSH1 32;
+        MUL; 
+        // Load in first index
+        DUP1;
+        PUSH1 64;
+        MLOAD;
+        ADD;
+        CALLDATALOAD;
+        // ^ should be the first entry
+        // Now I can load in the next two items;
+        PUSH1 192;
+        MSTORE;
+        STOP;
+    }
+}
+
+if (sighash == 0x82947abe) {
+    readERC20TransferEntry;
+} else {
+    readTransferEntry;
+}

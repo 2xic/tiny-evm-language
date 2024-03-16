@@ -80,11 +80,13 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
         // [Return logic]
         var deploymentCode = std.ArrayList(u8).init(std.heap.page_allocator);
         const map = opcodesMaps.Opcodes.init().OpcodesMap;
-        const sizeRUntime = @as(u32, @intCast((runtimeCode.items.len)));
+        const runtimeCodeSize = @as(u32, @intCast((runtimeCode.items.len)));
 
-        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
         // + 2 because of PUSH1 and the JUMP
-        try opcode_2_pointer(sizeRUntime + 3, &deploymentCode);
+        // BUT THIS COULD BE DYNAMIC .... DEPEDING ON THE SIZE OF THE OPCODE
+        var padding: u32 = get_push_number(runtimeCodeSize);
+
+        try push_opcode_2_number(runtimeCodeSize + padding, &deploymentCode);
         try opcode_2_pointer(map.get("JUMP").?.opcode, &deploymentCode);
         // [Jump target after the runtime code]
         for (runtimeCode.items) |value| {
@@ -93,11 +95,11 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
         try opcode_2_pointer(map.get("JUMPDEST").?.opcode, &deploymentCode);
 
         // SIZE
-        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
-        try opcode_2_pointer(sizeRUntime, &deploymentCode);
+        try push_opcode_2_number(runtimeCodeSize, &deploymentCode);
+
         // OFFSET
         try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
-        try opcode_2_pointer(3, &deploymentCode);
+        try opcode_2_pointer(padding, &deploymentCode);
         // DEST OFFSET
         try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
         try opcode_2_pointer(0, &deploymentCode);
@@ -111,20 +113,21 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
             // Load in the constructor value
             const loadSizeOpcodes: u32 = 6;
             const locationOfArugment = endOfOpcodeSize + constructorArguments * loadSizeOpcodes + 32 * indexu32;
-            try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
-            try opcode_2_pointer(locationOfArugment, &deploymentCode);
+            try push_opcode_2_number(locationOfArugment, &deploymentCode);
+
             try opcode_2_pointer(map.get("CALLDATALOAD").?.opcode, &deploymentCode);
 
             // Load in the key = index of the constructor argument'
-            try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
-            try opcode_2_pointer(indexu32, &deploymentCode);
+            try push_opcode_2_number(indexu32, &deploymentCode);
+
             try opcode_2_pointer(map.get("SSTORE").?.opcode, &deploymentCode);
         }
 
         // RETURN THE DEPLOYED CODE
         // SIZE
-        try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
-        try opcode_2_pointer(sizeRUntime, &deploymentCode);
+
+        try push_opcode_2_number(runtimeCodeSize, &deploymentCode);
+
         // OFFSET
         try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
         try opcode_2_pointer(0, &deploymentCode);
@@ -212,7 +215,7 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 //      const pointerSize = @as(u32, @intCast((pointer.items.len)));
                 const elseBodySize = @as(u32, @intCast((elseBodyBytescodes.items.len)));
 
-                const conditionals: [13]?opcodesMaps.Opcodemetdata = .{
+                const conditionals: [8]?opcodesMaps.Opcodemetdata = .{
                     map.get("PUSH0"),
                     map.get("CALLDATALOAD"),
                     map.get("PUSH1"),
@@ -222,18 +225,24 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                     //TODO: THIS SHOULD NOT BE HARDCODED.
                     opcodesMaps.Opcodemetdata{ .opcode = sighashValue, .inlineArgumentSize = 0 },
                     map.get("EQ"),
-                    map.get("PUSH1"),
+                    //  map.get("PUSH1"),
                     // JUMPDEST -> Current opcodes + 15
                     // 14 * Times number of if blocks nested I think .... FU
-                    opcodesMaps.Opcodemetdata{ .opcode = 3 + elseBodySize, .inlineArgumentSize = 0 },
-                    map.get("PC"),
-                    map.get("ADD"),
-                    map.get("JUMPI"),
+                    // opcodesMaps.Opcodemetdata{ .opcode = 3 + elseBodySize, .inlineArgumentSize = 0 },
+                    // map.get("PC"),
+                    // map.get("ADD"),
+                    // map.get("JUMPI"),
                     // [ELSE block]
                     //                    map.get("STOP"), // WE STOP IT FOR NOW, LATER FIX -> Fall through to the else block.
                     //                    // [JUMPDEST]
                     //                    map.get("JUMPDEST"), // WE STOP IT FOR NOW, LATER FIX
                 };
+                try print_value(conditionals, pointer);
+
+                try push_opcode_2_number(elseBodySize + get_push_number(elseBodySize), pointer);
+                try opcode_2_pointer(map.get("PC").?.opcode, pointer);
+                try opcode_2_pointer(map.get("ADD").?.opcode, pointer);
+                try opcode_2_pointer(map.get("JUMPI").?.opcode, pointer);
 
                 // JUMPDEST
                 //  PUSH0
@@ -246,8 +255,6 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 //  JUMPI
                 // Falls thorugh for the next block.
                 // TODO: Clean this ?
-
-                try print_value(conditionals, pointer);
 
                 if (elseBodyBytescodes.items.len == 0) {
                     std.debug.print("OH NO I FOUND NO ELSE BODY :'(\n", .{});
@@ -278,10 +285,7 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 // SHR
                 //
 
-                const conditionals: [5]?opcodesMaps.Opcodemetdata = .{
-                    map.get("PUSH1"),
-                    // JUMPDEST
-                    opcodesMaps.Opcodemetdata{ .opcode = @as(u32, @intCast((pointer.items.len))) + 8, .inlineArgumentSize = 0 },
+                const conditionals: [3]?opcodesMaps.Opcodemetdata = .{
                     map.get("JUMPI"),
                     map.get("STOP"), // WE STOP IT FOR NOW, LATER FIX
                     map.get("JUMPDEST"), // WE STOP IT FOR NOW, LATER FIX
@@ -297,6 +301,7 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 //  JUMPI
                 // Falls thorugh for the next block.
                 // TODO: Clean this ?
+                try push_opcode_2_number(@as(u32, @intCast((pointer.items.len))) + 8, pointer);
 
                 try print_value_four(conditionals, pointer);
                 for (ifBodyBytescodes.items) |item| {
@@ -349,11 +354,10 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
 
             const map = opcodesMaps.Opcodes.init().OpcodesMap;
             // We should always store the init location of the function so we can look that up in a recursvie function
-            // try function_mappings.put(function.name, @as(u32, @intCast(pointer.items.len)));
-            // try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
 
-            const approx_jump_location = @as(u32, @intCast(pointer.items.len)) + 3;
-            try function_mappings.put(function.name, approx_jump_location);
+            // I CANNOT APPROXIMATE THE JUMP LOCATION ':(
+            const function_jumpdest_location = @as(u32, @intCast(pointer.items.len)) + 3;
+            try function_mappings.put(function.name, function_jumpdest_location);
 
             var bytescodes = std.ArrayList(u8).init(std.heap.page_allocator);
             for (function.body.items) |b_block| {
@@ -373,9 +377,12 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 }
             }
             // NOTE: This should probably only be added for the head blocks ?
-            try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
-            const jump_location = @as(u32, @intCast(bytescodes.items.len)) + 5;
-            try opcode_2_pointer(jump_location, pointer);
+            const sizeOPcode = @as(u32, @intCast(pointer.items.len));
+            const jump_location = sizeOPcode + @as(u32, @intCast(bytescodes.items.len)) + 5;
+            if (256 < jump_location) {
+                @panic("WE DONT SUPPORT THIS FAR JUMP YET");
+            }
+            try push_opcode_2_number(jump_location, pointer);
             try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
             // USED TO BE HERE
             try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
@@ -409,8 +416,8 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 try opcode_2_pointer(7, pointer);
                 try opcode_2_pointer(map.get("ADD").?.opcode, pointer); // Push the PC so we can return to it
                 // Push on the function be called
-                try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
-                try opcode_2_pointer(jump_location, pointer);
+                try push_opcode_2_number(jump_location, pointer);
+
                 try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
                 try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
             } else {
@@ -419,6 +426,34 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             }
         },
         ast.GlobalBaseBlocks.Null => {},
+    }
+}
+
+fn get_push_number(value: u32) u32 {
+    if (value < 255) {
+        return 3;
+    } else if (value < 0xFFFF) {
+        return 4;
+    } else {
+        @panic("UNKNOWN");
+    }
+}
+
+fn push_opcode_2_number(value: u32, pointer: *std.ArrayList(u8)) !void {
+    if (value < 255) {
+        const map = opcodesMaps.Opcodes.init().OpcodesMap;
+
+        try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
+        // + 2 because of PUSH1 and the JUMP
+        try opcode_2_pointer(value, pointer);
+    } else if (value < 0xFFFF) {
+        const map = opcodesMaps.Opcodes.init().OpcodesMap;
+
+        try opcode_2_pointer(map.get("PUSH2").?.opcode, pointer);
+        // + 2 because of PUSH1 and the JUMP
+        try opcode_2_pointer(value, pointer);
+    } else {
+        @panic("UNKNOWN");
     }
 }
 
@@ -437,7 +472,7 @@ fn opcode_2_pointer(opcode: u32, pointer: *std.ArrayList(u8)) !void {
     }
 }
 
-fn print_value(value: [13]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8)) !void {
+fn print_value(value: [8]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8)) !void {
     for (value) |c| {
         if (c == null) {
             continue;
@@ -451,7 +486,7 @@ fn print_value(value: [13]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8
     }
 }
 
-fn print_value_four(value: [5]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8)) !void {
+fn print_value_four(value: [3]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayList(u8)) !void {
     for (value) |c| {
         if (c == null) {
             continue;
