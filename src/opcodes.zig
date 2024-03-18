@@ -74,6 +74,7 @@ pub const Opcodes = struct {
         };
 
         // NOTE: inlineArgumentSize is confusing here - FIX IT!
+        // It should just be used to validate (or pad) the next variable if it's not having the correct size in bytes.
         opcodeMap.put("PUSH4", Opcodemetdata{ .opcode = 0x63, .inlineArgumentSize = 1 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
@@ -81,6 +82,15 @@ pub const Opcodes = struct {
                 },
             }
         };
+
+        opcodeMap.put("PUSH20", Opcodemetdata{ .opcode = 0x73, .inlineArgumentSize = 1 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+
         opcodeMap.put("PUSH32", Opcodemetdata{ .opcode = 0x7F, .inlineArgumentSize = 1 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
@@ -284,6 +294,21 @@ pub const Opcodes = struct {
             }
         };
         opcodeMap.put("REVERT", Opcodemetdata{ .opcode = 0x7D, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+
+        opcodeMap.put("CALLER", Opcodemetdata{ .opcode = 0x33, .inlineArgumentSize = 0 }) catch |err| {
+            switch (err) {
+                OutOfMemoryError.OutOfMemory => {
+                    @panic("Out of memory");
+                },
+            }
+        };
+        opcodeMap.put("SELFDESTRUCT", Opcodemetdata{ .opcode = 0xFF, .inlineArgumentSize = 0 }) catch |err| {
             switch (err) {
                 OutOfMemoryError.OutOfMemory => {
                     @panic("Out of memory");
