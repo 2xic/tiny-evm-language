@@ -15,6 +15,7 @@ pub fn main() !void {
         return;
     }
 
+    // TODO: Improve this interface as it's not very robust
     const file = args[1];
     // Note: default is to output the runtime code
     var compileDeployment = false;
@@ -28,7 +29,7 @@ pub fn main() !void {
     var constructorArguments: u32 = 0;
     if (args.len >= 4) {
         constructorArguments = output.parseToU8(args[3]) catch {
-            @panic("what");
+            @panic("Failed to parse constructor argument count");
         };
     }
 

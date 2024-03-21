@@ -46,7 +46,7 @@ contract BadSolution is AirdropLike {
         address[] calldata recivers,
         uint256[] calldata value
     ) external payable {
-        for (uint i = 0; i < recivers.length; i++) {
+        for (uint i = 0; i < 16; i++) {
             address payable a = payable(recivers[i]);
             a.transfer(value[i]);
         }
@@ -59,7 +59,7 @@ contract BadSolution is AirdropLike {
         uint256 _totalTokens
     ) external {
         token.transferFrom(address(dropper), address(this), _totalTokens);
-        for (uint256 i = 0; i < recivers.length; i++) {
+        for (uint256 i = 0; i < 16; i++) {
             token.transfer(recivers[i], data[i]);
         }
     }

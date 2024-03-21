@@ -1,0 +1,6 @@
+[submodule "benchmark/lib/forge-std"]
+	path = benchmark/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "benchmark/lib/openzeppelin-contracts"]
+	path = benchmark/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

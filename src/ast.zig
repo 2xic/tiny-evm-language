@@ -1,12 +1,11 @@
-// assembly ->
 const std = @import("std");
 
 const OpcodesMap = @import("./opcodes.zig");
 
 const Opcode = struct {
-    name: []const u8, // Field with the name
+    name: []const u8,
     opcode: u32,
-    arguments: [][]const u8, // Field with the name
+    arguments: [][]const u8,
 
     pub fn init(name: []const u8, opcode: u32, arguments: [][]const u8) Opcode {
         return Opcode{ .name = name, .opcode = opcode, .arguments = arguments };
@@ -27,7 +26,6 @@ pub const CompareBlock = struct {
 };
 
 pub const IfBlock = struct {
-    // This could also ohld AssemblyBlocks ...
     cmp: CompareBlock,
     body: std.ArrayList(BaseBlocks),
     elseBody: std.ArrayList(BaseBlocks),
@@ -40,7 +38,6 @@ pub const IfBlockError = union(enum) {
 
 pub const FunctionBlock = struct {
     name: []const u8,
-    // This could also ohld AssemblyBlocks ...
     body: std.ArrayList(BaseBlocks),
 };
 
@@ -72,10 +69,6 @@ pub const GlobalBaseBlocks = union(enum) {
     Null: void,
 };
 
-fn initEmptyOpcodeSlice() []Opcode {
-    return &[]Opcode{};
-}
-
 const Parser = struct {
     entries: [][]const u8,
     currentIndex: usize,
@@ -86,7 +79,7 @@ const Parser = struct {
         return Parser{ .entries = entries, .currentIndex = 0, .functions = functions, .functionsName = "" };
     }
 
-    pub fn hasNextSymbol(self: *Parser) bool {
+    pub fn has_next_symbol(self: *Parser) bool {
         return (self.currentIndex + 1) < self.entries.len;
     }
 
@@ -101,26 +94,19 @@ const Parser = struct {
         return symbol;
     }
 
-    pub fn addFunctions(self: *Parser, functionName: []const u8) !void {
+    pub fn add_function(self: *Parser, functionName: []const u8) !void {
         try self.functions.append(functionName);
         return;
     }
 
-    pub fn setCurrentFunctionName(self: *Parser, functionName: []const u8) !void {
+    pub fn set_current_function_name(self: *Parser, functionName: []const u8) !void {
         self.functionsName = functionName;
         return;
     }
 };
 
 pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
-    // First get tokens ... Then we need to compare that against all the next blocks
-    for (entries, 0..) |entry, i| {
-        std.debug.print("token ({}) == {s} \n", .{ i, entry });
-    }
-
-    std.debug.print("=====END====\n", .{});
-
-    var functions = std.ArrayList([]const u8).init(std.heap.page_allocator);
+    const functions = std.ArrayList([]const u8).init(std.heap.page_allocator);
     var parser = Parser.init(entries, functions);
 
     var opcodes = std.ArrayList(GlobalBaseBlocks).init(std.heap.page_allocator);
@@ -131,14 +117,11 @@ pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
 
         switch (function) {
             FunctionBlockError.FunctionBlock => |assemblyBlock| {
-                std.debug.print("Function block?\n", .{});
                 try opcodes.append(GlobalBaseBlocks{ .FunctionBlock = assemblyBlock });
-                try parser.addFunctions(assemblyBlock.name);
+                try parser.add_function(assemblyBlock.name);
             },
             FunctionBlockError.Null => {
                 parser.currentIndex = oldIndex;
-                std.debug.print("General blocks\n", .{});
-                //                std.debug.print("index == {} / {} \n", .{ .val = parser.currentIndex, .aa = entries.len });
 
                 const opcode: BaseBlocks = get_base_block(&parser);
                 switch (opcode) {
@@ -152,14 +135,14 @@ pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
                         try opcodes.append(GlobalBaseBlocks{ .FunctionCall = assemblyBlock });
                     },
                     BaseBlocks.Null => {
-                        @panic("what");
+                        @panic("Got null block, expected block to be defined");
                     },
                 }
             },
         }
-        std.debug.print("Parser index == {} / {} \n", .{ .val = parser.currentIndex, .aa = entries.len });
 
         if (oldIndex == parser.currentIndex) {
+            std.debug.print("Parser index == {} / {} \n", .{ .val = parser.currentIndex, .aa = entries.len });
             @panic("Index was unchanged");
         }
         oldIndex = parser.currentIndex;
@@ -172,22 +155,22 @@ fn get_function_block(parser: *Parser) FunctionBlockError {
     var parser_var = parser;
 
     if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), "function")) {
+        // TODO: Clean up the api for this interaction
         const _function_def = parser_var.get_next_symbol();
         _ = _function_def;
 
         const _function_name = parser_var.get_next_symbol();
 
-        try parser_var.setCurrentFunctionName(_function_name);
+        try parser_var.set_current_function_name(_function_name);
 
         const start_symbol = parser_var.get_next_symbol();
         if (std.mem.eql(u8, start_symbol, "{")) {
             var body = std.ArrayList(BaseBlocks).init(std.heap.page_allocator);
 
+            // TODO: Clean up this interaction
             // While we don't see a "}" we are inside a assembly block
             while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
-                // Okay now we can load in other blocks ... Like assembly blocks
                 const assembly: BaseBlocks = get_base_block(parser);
-                std.debug.print("BLOCK\n", .{});
 
                 body.append(assembly) catch |err| {
                     switch (err) {
@@ -227,23 +210,18 @@ fn get_base_block(_parser: *Parser) BaseBlocks {
                     const function_call_value = parse_function_call(parser);
                     switch (function_call_value) {
                         FunctionCallError.FunctionCall => |block| {
-                            std.debug.print("Found it :)\n", .{});
                             return .{ .FunctionCall = block };
                         },
                         FunctionCallError.Null => {},
                     }
                 },
             }
-            @panic("Something went wrong! Unknown code at position");
+            @panic("Something went wrong! Unknown code state when fetching base block");
         },
     }
-    @panic("Something went wrong! Unknown code at position");
+    @panic("Something went wrong! Unknown code state when fetching base block");
 }
 
-// TDOO:
-// My idea of this is
-// We have top level blocks and lower level blocks ...
-// Then we parse them ...
 fn parrse_if_block(parser: *Parser) IfBlockError {
     var parser_var = parser;
 
@@ -281,7 +259,7 @@ fn parrse_if_block(parser: *Parser) IfBlockError {
             var elseBody = std.ArrayList(BaseBlocks).init(std.heap.page_allocator);
 
             // THE NEXT BLOCK COULD BE AN ELSE !!!!
-            if (parser_var.hasNextSymbol()) {
+            if (parser_var.has_next_symbol()) {
                 if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), "else")) {
                     _ = parser_var.get_next_symbol();
                     _ = parser_var.get_next_symbol();
@@ -308,26 +286,18 @@ fn parrse_if_block(parser: *Parser) IfBlockError {
 fn parse_function_call(parser: *Parser) FunctionCallError {
     var parser_var = parser;
     if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), parser_var.functionsName)) {
-        var name = parser_var.get_next_symbol();
+        const name = parser_var.get_next_symbol();
         return .{ .FunctionCall = FunctionCall{ .name = name } };
     }
 
     for (parser.functions.items) |elem| {
         if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), elem)) {
-            var name = parser_var.get_next_symbol();
+            const name = parser_var.get_next_symbol();
 
             return .{ .FunctionCall = FunctionCall{ .name = name } };
         }
     }
-    std.debug.print("NO match!", .{});
-    //    //if (std.mem.eql(u8, parser_var.peek_nexy_symbol(), elem)) {
-    //    //    //// const _if_name = parser_var.get_next_symbol();
-    //    //    ////  _ = _if_name;
-    //    //    //// TODO
-    //    //    //std.debug.print("OH MAN \n", {});
-    //    //    ////  return .{ .FunctionCall = FunctionCall{ .name = elem } };
-    //    //}
-    //}
+
     return .{ .Null = {} };
 }
 
@@ -348,6 +318,7 @@ fn parse_assembly_block(parser: *Parser) ErrorOrBlock {
         const nextSymbol = parser_var.get_next_symbol();
 
         if (std.mem.eql(u8, currentSymbol, "assembly") and std.mem.eql(u8, nextSymbol, "{")) {
+            // TODO: Improve this interface
             // While we don't see a "}" we are inside a assembly block
             while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
 
@@ -374,6 +345,7 @@ fn parse_assembly_block(parser: *Parser) ErrorOrBlock {
                     }
                 };
 
+                // TODO: Here we should do validation of the size and padding also if the value is less than what is specified.
                 for (0..opcodeType.?.inlineArgumentSize) |index| {
                     array[index] = parser_var.get_next_symbol();
                 }

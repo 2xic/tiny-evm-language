@@ -81,10 +81,7 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
         var deploymentCode = std.ArrayList(u8).init(std.heap.page_allocator);
         const map = opcodesMaps.Opcodes.init().OpcodesMap;
         const runtimeCodeSize = @as(u32, @intCast((runtimeCode.items.len)));
-
-        // + 2 because of PUSH1 and the JUMP
-        // BUT THIS COULD BE DYNAMIC .... DEPEDING ON THE SIZE OF THE OPCODE
-        var padding: u32 = get_push_number(runtimeCodeSize);
+        const padding: u32 = get_push_number(runtimeCodeSize);
 
         try push_opcode_2_number(runtimeCodeSize + padding, &deploymentCode);
         try opcode_2_pointer(map.get("JUMP").?.opcode, &deploymentCode);
@@ -125,9 +122,7 @@ pub fn print_assembly_block(blocks: std.ArrayList(ast.GlobalBaseBlocks), compile
 
         // RETURN THE DEPLOYED CODE
         // SIZE
-
         try push_opcode_2_number(runtimeCodeSize, &deploymentCode);
-
         // OFFSET
         try opcode_2_pointer(map.get("PUSH1").?.opcode, &deploymentCode);
         try opcode_2_pointer(0, &deploymentCode);
@@ -173,7 +168,7 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                         try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &ifBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.Null => {
-                        @panic("what");
+                        @panic("Got null block, expected base block to be defined");
                     },
                 }
             }
@@ -190,7 +185,7 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                         try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &elseBodyBytescodes, additionalAdding);
                     },
                     ast.BaseBlocks.Null => {
-                        @panic("what");
+                        @panic("Got null block, expected base block to be defined");
                     },
                 }
             }
@@ -198,18 +193,14 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             // Prepare for the jump conditonlas
             const cmp_expression = if_body.cmp;
             if (std.mem.eql(u8, cmp_expression.expr_1, "sighash")) {
-                // This meanas we need to push onto more opcodes onto the stack
-                // TODO: I kinda want this to be processed by some other step so I can write in assembly here ...
                 const map = opcodesMaps.Opcodes.init().OpcodesMap;
                 // TODO First add this block to load the sighash
                 // PUSH0
                 // CALLDATALOAD
                 // PUSH1 0xe0
                 // SHR
-                //
-
-                const sighashValue = parseToU32(cmp_expression.expr_2) catch {
-                    @panic("what");
+                const sighashValue = parse_to_u32(cmp_expression.expr_2) catch {
+                    @panic("Failed to parse u32 number");
                 };
 
                 //      const pointerSize = @as(u32, @intCast((pointer.items.len)));
@@ -232,65 +223,31 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                 try opcode_2_pointer(map.get("ADD").?.opcode, pointer);
                 try opcode_2_pointer(map.get("JUMPI").?.opcode, pointer);
 
-                // JUMPDEST
-                //  PUSH0
-                //  CALLDATALOAD
-                //  PUSH1 0xe0
-                //  SHR
-                //  PUSH4 0xdeadbeef
-                //  EQ
-                //  PUSH1 0 // Offset to jump to ... Needs to be loaded after the JUMPI + 1
-                //  JUMPI
-                // Falls thorugh for the next block.
-                // TODO: Clean this ?
-
+                // TODO: Clean this up ?
                 if (elseBodyBytescodes.items.len == 0) {
-                    std.debug.print("OH NO I FOUND NO ELSE BODY :'(\n", .{});
+                    // TODO: No else body === stop currently, but should be jump.
                     try opcode_2_pointer(map.get("STOP").?.opcode, pointer);
                 } else {
-                    std.debug.print("I ADD ELSE BODY :D\n", .{});
                     for (elseBodyBytescodes.items) |item| {
                         try pointer.append(item);
-                        std.debug.print("OPCODE === {} \n", .{item});
                     }
-                    // JUMP PAST THE NEXT BLOCK
-
                 }
-                // TODO: THEN I ACTUALLY HAVE TO JUMP PAST THE NEXT IF BLOCK? YES YES ?
 
                 try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
                 for (ifBodyBytescodes.items) |item| {
                     try pointer.append(item);
                 }
             } else if (std.mem.eql(u8, cmp_expression.expr_1, "stack_top_is_zero")) {
-                // This meanas we need to push onto more opcodes onto the stack
-                // TODO: I kinda want this to be processed by some other step so I can write in assembly here ...
                 const map = opcodesMaps.Opcodes.init().OpcodesMap;
-                // TODO First add this block to load the sighash
-                // PUSH0
-                // CALLDATALOAD
-                // PUSH1 0xe0
-                // SHR
-                //
-
                 const conditionals: [3]?opcodesMaps.Opcodemetdata = .{
                     map.get("JUMPI"),
-                    map.get("STOP"), // WE STOP IT FOR NOW, LATER FIX
-                    map.get("JUMPDEST"), // WE STOP IT FOR NOW, LATER FIX
+                    // TODO: WE STOP IT FOR NOW, LATER FIX
+                    map.get("STOP"),
+                    map.get("JUMPDEST"),
                 };
-                // JUMPDEST
-                //  PUSH0
-                //  CALLDATALOAD
-                //  PUSH1 0xe0
-                //  SHR
-                //  PUSH4 0xdeadbeef
-                //  EQ
-                //  PUSH1 0 // Offset to jump to ... Needs to be loaded after the JUMPI + 1
-                //  JUMPI
-                // Falls thorugh for the next block.
-                // TODO: Clean this ?
+
+                // TODO: Clean this up ?
                 const stack_is_zero_destination = additionalAdding + @as(u32, @intCast((pointer.items.len))) + 8;
-                std.debug.print("AAA {} \n", .{ .value = stack_is_zero_destination });
                 try push_opcode_2_number(stack_is_zero_destination, pointer);
 
                 try print_value_four(conditionals, pointer);
@@ -302,50 +259,36 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
         ast.GlobalBaseBlocks.AssemblyBlock => |assembly_block| {
             for (assembly_block.opcodes.items) |c| {
                 const value = c.opcode;
-
-                const numBytes = countBytes(value);
+                const numBytes = count_bytes(value);
 
                 if (numBytes == 0) {
                     try pointer.append(0);
                 } else {
                     for (0..numBytes) |index| {
-                        try pointer.append(getByteNumber(value, index, numBytes));
+                        try pointer.append(get_byte_number(value, index, numBytes));
                     }
                 }
 
                 for (c.arguments) |val| {
-                    std.debug.print("token == {s} \n", .{val});
-
-                    var value2 = parseToU256(val) catch {
-                        @panic("what value is this");
+                    const value2 = parse_to_u256(val) catch {
+                        @panic("Failed to parse the PUSH argument value");
                     };
-                    const numBytesValue = countBytes(value2);
+                    const numBytesValue = count_bytes(value2);
 
                     if (numBytesValue == 0) {
                         try pointer.append(0);
                     } else {
                         for (0..numBytesValue) |index| {
-                            try pointer.append(getByteNumber(value2, index, numBytesValue));
+                            try pointer.append(get_byte_number(value2, index, numBytesValue));
                         }
                     }
-
-                    //              var value2 = parseToU8(val) catch {
-                    //                    @panic("what");
-                    //                  };
-                    //                    try pointer.append(value2);
                 }
             }
         },
         ast.GlobalBaseBlocks.FunctionBlock => |function| {
-            // Create a new function buffer
-            // We will use this to find the location later
-            // First generate the function size
-            // Insert jump over it
-
             const map = opcodesMaps.Opcodes.init().OpcodesMap;
-            // We should always store the init location of the function so we can look that up in a recursvie function
 
-            // I CANNOT APPROXIMATE THE JUMP LOCATION ':(
+            // We should always store the init location of the function so we can look that up in a recursvie function
             const function_jumpdest_location = @as(u32, @intCast(pointer.items.len)) + 3;
             try function_mappings.put(function.name, function_jumpdest_location);
 
@@ -364,10 +307,11 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
                         try parse_nested_blocks(function_mappings, ast.GlobalBaseBlocks{ .FunctionCall = assemblyBlock }, &bytescodes, sizeOPcode);
                     },
                     ast.BaseBlocks.Null => {
-                        @panic("what");
+                        @panic("Got null block, expected base block to be defined");
                     },
                 }
             }
+
             // NOTE: This should probably only be added for the head blocks ?
             const jump_location = sizeOPcode + @as(u32, @intCast(bytescodes.items.len)) + 5;
             if (256 < jump_location) {
@@ -375,7 +319,6 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             }
             try push_opcode_2_number(jump_location, pointer);
             try opcode_2_pointer(map.get("JUMP").?.opcode, pointer);
-            // USED TO BE HERE
             try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
 
             for (bytescodes.items) |item| {
@@ -385,27 +328,17 @@ fn parse_nested_blocks(function_mappings: *std.HashMap([]const u8, u32, CaseInse
             try opcode_2_pointer(map.get("JUMPDEST").?.opcode, pointer);
         },
         ast.GlobalBaseBlocks.FunctionCall => |function| {
-            // HM, we cannot generate this before the end of the buffer ...
-            // Since there is things happening in between ...
-            //
-            // [normal opcodes]
-            // JMP + Size of offset
-            // [Function offset]
-            // [HALT]
-            //
-
             const offset = function_mappings.get(function.name);
             if (offset) |offset_value| {
                 const jump_location = @as(u32, @intCast(offset_value));
-                std.debug.print("COnstructing the function jump offset = {} \n", .{jump_location});
+                std.debug.print("Constructing the function jump offset = {} \n", .{jump_location});
 
-                // got value "v"
                 const map = opcodesMaps.Opcodes.init().OpcodesMap;
                 // Push over to the return location
-                try opcode_2_pointer(map.get("PC").?.opcode, pointer); // Push the PC so we can return to it
+                try opcode_2_pointer(map.get("PC").?.opcode, pointer);
                 try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
                 try opcode_2_pointer(7, pointer);
-                try opcode_2_pointer(map.get("ADD").?.opcode, pointer); // Push the PC so we can return to it
+                try opcode_2_pointer(map.get("ADD").?.opcode, pointer);
                 // Push on the function be called
                 try push_opcode_2_number(jump_location, pointer);
 
@@ -426,7 +359,7 @@ fn get_push_number(value: u32) u32 {
     } else if (value < 0xFFFF) {
         return 4;
     } else {
-        @panic("UNKNOWN");
+        @panic("Value larger than supported push opcode size");
     }
 }
 
@@ -435,13 +368,11 @@ fn push_opcode_2_number(value: u32, pointer: *std.ArrayList(u8)) !void {
         const map = opcodesMaps.Opcodes.init().OpcodesMap;
 
         try opcode_2_pointer(map.get("PUSH1").?.opcode, pointer);
-        // + 2 because of PUSH1 and the JUMP
         try opcode_2_pointer(value, pointer);
     } else if (value < 0xFFFF) {
         const map = opcodesMaps.Opcodes.init().OpcodesMap;
 
         try opcode_2_pointer(map.get("PUSH2").?.opcode, pointer);
-        // + 2 because of PUSH1 and the JUMP
         try opcode_2_pointer(value, pointer);
     } else {
         @panic("UNKNOWN");
@@ -449,7 +380,7 @@ fn push_opcode_2_number(value: u32, pointer: *std.ArrayList(u8)) !void {
 }
 
 fn opcode_2_pointer(opcode: u32, pointer: *std.ArrayList(u8)) !void {
-    const numBytes = countBytes(opcode);
+    const numBytes = count_bytes(opcode);
 
     if (opcode == 0) {
         try pointer.append(0);
@@ -457,7 +388,7 @@ fn opcode_2_pointer(opcode: u32, pointer: *std.ArrayList(u8)) !void {
         for (0..numBytes) |index| {
             const shift: u5 = @as(u5, @intCast((numBytes - index - 1) * 8));
             const number = opcode;
-            var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
+            const byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
             try pointer.append(byteValue);
         }
     }
@@ -491,7 +422,7 @@ fn print_value_four(value: [3]?opcodesMaps.Opcodemetdata, pointer: *std.ArrayLis
     }
 }
 
-pub fn parseToU256(input: []const u8) !u256 {
+pub fn parse_to_u256(input: []const u8) !u256 {
     var num: u256 = undefined;
 
     const is_hex = input.len > 2 and input[0] == '0' and (input[1] == 'x' or input[1] == 'X');
@@ -503,9 +434,9 @@ pub fn parseToU256(input: []const u8) !u256 {
     return num;
 }
 
-pub fn parseToU32(input: []const u8) !u32 {
-    var num: u256 = parseToU256(input) catch {
-        @panic("what");
+pub fn parse_to_u32(input: []const u8) !u32 {
+    const num: u256 = parse_to_u256(input) catch {
+        @panic("Failed to parse number as uint256");
     };
     // Ensure the parsed number is within the range of u8
     if (num < 0 or num > 4294967296) {
@@ -514,18 +445,7 @@ pub fn parseToU32(input: []const u8) !u32 {
     return @as(u32, @intCast(num));
 }
 
-pub fn parseToU8(input: []const u8) !u8 {
-    var num: u256 = parseToU256(input) catch {
-        @panic("what");
-    };
-    // Ensure the parsed number is within the range of u8
-    if (num < 0 or num > 255) {
-        return error.InvalidValue;
-    }
-    return @as(u8, @intCast(num));
-}
-
-fn countBytes(number: u256) u8 {
+fn count_bytes(number: u256) u8 {
     var count: u8 = 0;
     var temp: u256 = number;
     while (temp != 0) {
@@ -535,8 +455,8 @@ fn countBytes(number: u256) u8 {
     return count;
 }
 
-fn getByteNumber(number: u256, index: usize, numBytes: u8) u8 {
+fn get_byte_number(number: u256, index: usize, numBytes: u8) u8 {
     const shift: u8 = @as(u8, @intCast((numBytes - index - 1) * 8));
-    var byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
+    const byteValue: u8 = @as(u8, @intCast((number >> shift) & 0xFF));
     return byteValue;
 }
