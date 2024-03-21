@@ -2,6 +2,9 @@
 *Photo credit: [@high_byte](https://twitter.com/high_byte)*
 
 
+## Preface
+This compiler is kinda wack as it was more a golfing excessive and reason to play with Zig. I put more love into my [C compiler](https://github.com/2xic/tiny-c-compiler).
+
 ## Goal
 I just wanted to create a simple golfing language that solves [dropper](https://github.com/paradigmxyz/paradigm-ctf-2023/blob/main/dropper/challenge/project/src/Challenge.sol) CTF challenge from [paradigm.xyz](https://ctf.paradigm.xyz/) and also a reason to play with zig. The best solutions requires [pre-computation](https://twitter.com/orenyomtov/status/1718856711887339863), but that isn't what we are trying to do here. The point is not to create the best solution, but create a **golfing** solution.
 
@@ -12,7 +15,7 @@ See [docs](./docs/readme.md) for some example programs.
 | [Tiny evm language](programs/dropper_soloution.golf) | 955188 |
 | [Naive solc](benchmark/src/BadSolution.sol)          | 970992 |
 
-See [benchmark](./benchmark/readme.md)
+See [benchmark](./benchmark/) or run it yourself `./run_dropper_benchmark.sh`
 
 
 ## Todos 

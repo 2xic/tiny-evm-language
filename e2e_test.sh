@@ -2,14 +2,16 @@
 
 make build 
 
-# Define your function
 compare_output() {
-    input_file="$1" # The script to run 
+    # The program to compile 
+    input_file="$1" 
     echo "$input_file"
     ./zig-out/bin/cli "$input_file" $3 $5
-    expected_content="$2" # The expected output 
+    # The expected output 
+    expected_content="$2"
     function_output=$(cat runtime.txt)
-    # Compare output 
+    
+    # Compare runtime output 
     if [ "$function_output" = "$expected_content" ]; then
         echo "Runtime output matches the content of the file."
     else
@@ -20,7 +22,8 @@ compare_output() {
     fi
     # Check the deployment code also
     if [ -n "$3" ]; then
-        expected_content="$4" # The expected output 
+    # The expected output 
+        expected_content="$4"
         function_output=$(cat deploy.txt)
         if [ "$function_output" = "$expected_content" ]; then
             echo "Deploy output matches the content of the file."
@@ -33,7 +36,7 @@ compare_output() {
     fi
 }
 
-# First test 
+# Expected output tests
 compare_output "./programs/your_first_program.golf" "5f"
 compare_output "./programs/your_second_program.golf" "5f3560e01c63deadbeef146004580157005b5f"
 compare_output "./programs/your_third_program.golf" "6007565b5f50565b586007016003565b"
@@ -43,5 +46,3 @@ compare_output "./programs/constructor_program.golf" "5f54" "deploy" "6005565f54
 compare_output "./programs/if_conditions.golf" "5f3560e01c63deadbeef14601f5801575f3560e01c63deadc0de146008580157602b5f55005b602a5f0055005b60015f5500"
 
 echo "Good compiler :)"
-# 5b601b565f516020511015600f57005b5f5f5f5860070160565b565b5f5f525f3580356020526020355860070160565b
-# 5b601a565f516020511015600f57005b5f5f5f586007016056565b5f5f525f358035602052602035586007016056
