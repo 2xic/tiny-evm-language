@@ -32,12 +32,12 @@ contract ChallengeERC721 is Ownable, ERC721 {
 }
 
 contract Challenge {
-    function randomAddress(uint256 seed) private view returns (uint256, address) {
+    function randomAddress(uint256 seed) private pure returns (uint256, address) {
         bytes32 v = keccak256(abi.encodePacked((seed >> 128) | (seed << 128)));
         return (uint256(keccak256(abi.encodePacked(seed))), address(bytes20(v)));
     }
 
-    function randomUint(uint256 seed, uint256 min, uint256 max) private view returns (uint256, uint256) {
+    function randomUint(uint256 seed, uint256 min, uint256 max) private pure returns (uint256, uint256) {
         bytes32 v = keccak256(abi.encodePacked((seed >> 128) | (seed << 128)));
         return (uint256(keccak256(abi.encodePacked(seed))), uint256(v) % (max - min) + min);
     }

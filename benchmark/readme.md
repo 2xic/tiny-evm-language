@@ -13,4 +13,3 @@ Logs:
   955284
 ```
 
-We will beat this score with our fancy language.

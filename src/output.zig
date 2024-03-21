@@ -438,11 +438,22 @@ pub fn parse_to_u32(input: []const u8) !u32 {
     const num: u256 = parse_to_u256(input) catch {
         @panic("Failed to parse number as uint256");
     };
-    // Ensure the parsed number is within the range of u8
+    // Ensure the parsed number is within the range of u32
     if (num < 0 or num > 4294967296) {
         return error.InvalidValue;
     }
     return @as(u32, @intCast(num));
+}
+
+pub fn parse_to_u8(input: []const u8) !u8 {
+    const num: u256 = parse_to_u256(input) catch {
+        @panic("Failed to parse number as uint256");
+    };
+    // Ensure the parsed number is within the range of u8
+    if (num < 0 or num > 256) {
+        return error.InvalidValue;
+    }
+    return @as(u8, @intCast(num));
 }
 
 fn count_bytes(number: u256) u8 {

@@ -1,16 +1,7 @@
-// First part of the dropper challenge is for us to be able to decode the function inputs
-// 0000000000000000000000000000000000000000000000000000000000000040 -> First entry location
-// 00000000000000000000000000000000000000000000000000000000000000a0 -> Second entry location
-// 0000000000000000000000000000000000000000000000000000000000000002 -> size
-// 00000000000000000000000000000000000000adc04c56bf30ac9d3c0aaf14dc -> Entry 1
-// 00000000000000000000000000000000000000adc04c56bf30ac9d3c0aaf14dc -> Entry 2
-// 0000000000000000000000000000000000000000000000000000000000000002 -> size
-// 000000000000000000000000000000000000000000000000000000000000002a -> Entry 1
-// 000000000000000000000000000000000000000000000000000000000000003e -> Entry 2
 
-
+// Handles the transfer function of the ETH balances
 function readTransferEntry {
-    // We have no while loops, we need to recursively call this function 
+    // NOTE: We have no while loops in this language, we need to recursively call this function 
 
     // TODO: Instead of doing MLOAD, we can just reuse the stack
     assembly {
@@ -23,9 +14,8 @@ function readTransferEntry {
         ISZERO;
     }
 
-    // Only walk into this function if it's close to the top .... 
+    // Need to re-enter the function until we are done.
     if (stack_top_is_zero == 0){
-        // Need to re-enter the function until we are done.
         assembly {
             // Load in the data ? 
             PUSH0;
@@ -36,24 +26,25 @@ function readTransferEntry {
             PUSH0;
             MSTORE;
 
+            // Calculat the offset
             PUSH1 32;
             MUL; 
-            // Load in first index
+
+            // Load in the first list value
             DUP1;
             PUSH1 64;
             MLOAD;
             ADD;
             CALLDATALOAD;
-            // ^ should be the first entry
 
-            // Load in the second entry 
+            // Load in the second list value 
             DUP2;
             PUSH1 96;
             MLOAD;
             ADD;
             CALLDATALOAD;
-            // ^ second entry
 
+            // Call the transfer 
             PUSH0;   // retSize
             PUSH0;   // retOffset
             PUSH0;   // argSize
@@ -68,7 +59,7 @@ function readTransferEntry {
     }
 }
 
-// TODO: Rewrite it in a way so that it reuses the same function as above, but only with a parameter to specify if you are doing eth or erc20 transfers
+// TODO: Rewrite it in a way so that it reuses the same function as above, but only with a parameter to specify if you are doing eth / erc20 / erc721
 function readERC20TransferEntry {
     // We have no while loops, we need to recursively call this function 
 
@@ -96,16 +87,16 @@ function readERC20TransferEntry {
             PUSH0;
             MSTORE;
 
+            // Load in the array index
             PUSH1 32;
             MUL; 
-            // Load in first index
+
+            // Load in first list value
             DUP1;
             PUSH1 64;
             MLOAD;
             ADD;
             CALLDATALOAD;
-            // ^ should be the first entry
-            // Now I can load in the next two items;
             PUSH1 164;
             MSTORE; 
 
@@ -115,27 +106,20 @@ function readERC20TransferEntry {
             MLOAD;
             ADD;
             CALLDATALOAD;
-            // ^ second entry
-            // Now I can load in the next two items;
             PUSH1 196;
             MSTORE; 
 
-//            STOP;
-
-            PUSH1 160;
-            MLOAD;
-
-            // -> I NOW NEED to get out the data 
-            PUSH0;   // retSize
-            PUSH0;   // retOffset
+            // Call the token
+            PUSH0;      // retSize
+            PUSH0;      // retOffset
             PUSH1 68;   // argSize
-            PUSH1 160;   // argOffset
-            PUSH0;   // value
-            // WE LOAD IN THE REAL TOKEN ADDRESS
-            PUSH1   128;
-            MLOAD; // LOAD in token address
+            PUSH1 160;  // argOffset
+            PUSH0;      // value
+            // TODO: This should also just be a stack entry
+            // Load in the token address
+            PUSH1  128;
+            MLOAD;
             GAS;
-    //        STOP;
             CALL;
         }
 
@@ -144,6 +128,7 @@ function readERC20TransferEntry {
 }
 
 
+// TODO: Rewrite it in a way so that it reuses the same function as above, but only with a parameter to specify if you are doing eth / erc20 / erc721
 function readTransferErc721Entry {
     // We have no while loops, we need to recursively call this function 
 
@@ -158,11 +143,9 @@ function readTransferErc721Entry {
         ISZERO;
     }
 
-    // Only walk into this function if it's close to the top .... 
+    // Need to re-enter the function until we are done.
     if (stack_top_is_zero == 0){
-        // Need to re-enter the function until we are done.
         assembly {
-            // Load in the data ? 
             PUSH0;
             MLOAD;
             PUSH1 1;
@@ -171,18 +154,18 @@ function readTransferErc721Entry {
             PUSH0;
             MSTORE;
 
+            // Load in first index
             PUSH1 32;
             MUL; 
-            // Load in first index
+
+            // Load in first array entry
             DUP1;
             PUSH1 64;
             MLOAD;
             ADD;
             CALLDATALOAD;
-            // ^ should be the first entry
-            // Now I can load in the next two items;
             PUSH1 196;
-            MSTORE; 
+            MSTORE;
 
             // Load in the second entry 
             DUP1;
@@ -190,43 +173,34 @@ function readTransferErc721Entry {
             MLOAD;
             ADD;
             CALLDATALOAD;
-            // ^ second entry
-            // Now I can load in the next two items;
             PUSH1 228;
             MSTORE; 
 
-//            STOP;
-
-            PUSH1 160;
-            MLOAD;
-
-            // -> I NOW NEED to get out the data 
-            PUSH0;   // retSize
-            PUSH0;   // retOffset
-            PUSH1 200;   // argSize
-            PUSH1 160;   // argOffset
-            PUSH0;   // value
-            // WE LOAD IN THE REAL TOKEN ADDRESS
+            // Do the call
+            PUSH0;          // retSize
+            PUSH0;          // retOffset
+            PUSH1 200;      // argSize
+            PUSH1 160;      // argOffset
+            PUSH0;          // value
+            // TODO: Make this be on the stack instead
+            // Load in the token address
             PUSH1   128;
-            MLOAD; // LOAD in token address
+            MLOAD;
             GAS;
-           // STOP;
-           CALL;
+            CALL;
         }
 
         readTransferErc721Entry;
     }
 }
 
-// function airdropETH(address[] calldata recivers,uint256[] calldata value)
-    
+// function airdropETH(address[] calldata, uint256[] calldata)
 if (sighash == 0xc1a38006) {
-    // if calldata 4 bytes == airdropETH
     assembly {
-        // Size of the first array will match the second one so we use that to track the location.
+        // Global index pointer 
         PUSH0;
-        PUSH1 1; // Need to start at 
-        MSTORE; // Global index pointer 
+        PUSH1 1; 
+        MSTORE;
                 
         // Load in the first offset
         PUSH1 4;
@@ -236,9 +210,6 @@ if (sighash == 0xc1a38006) {
         PUSH1 64;
         MSTORE;    
 
-        //  0, 32 -> indexes
-        // 64, 96 -> Locations
-
         // Now we also load in the size pointer to slot 2
         PUSH1 36;
         CALLDATALOAD;
@@ -247,33 +218,25 @@ if (sighash == 0xc1a38006) {
         PUSH1 96;
         MSTORE; 
 
-        // Now we specify the length
+        // Load in the size of array
         PUSH1 64;
         MLOAD;
         CALLDATALOAD;
         PUSH1 32;
         MSTORE;
+
+        //  0, 32 -> indexes
+        // 64, 96 -> Data offset locations
     };
 
     // Call the function to read out all the entries
     readTransferEntry;
 } else {
-    // 82947abe000000000000000000000000104fbc016f4bb334d775a19e8a6510109ac63e00000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000001f40000000000000000000000000000000000000000000000000000000000000001000000000000000000000000c72625762ce42bb2bbfdb8815b9db30174553f3b0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002a
-    // 000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 <-  TOKEN
-    // 0000000000000000000000000000000000000000000000000000000000000080 <-  OFFSET 
-    // 00000000000000000000000000000000000000000000000000000000000000c0 <-  OFFSET
-    // 0000000000000000000000000000000000000000000000000000000000002710 <-  AMOUNT
-    // 0000000000000000000000000000000000000000000000000000000000000001 <-  SIZE
-    // 000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 <-  ENTRY
-    // 0000000000000000000000000000000000000000000000000000000000000001 <-  SIZE
-    // 00000000000000000000000000000000000000000000000000000000000003e8 <-  ENTRY
-
-
     // function airdropERC20(Erc20Like token,address[] calldata recivers,uint256[] calldata data,uint256 _totalTokens)
     if (sighash == 0x82947abe) {
-        // First the setup step requires me to call the transferFrom on the 
         assembly {
-            // LOAD IN THE DROPPER CONTRACT
+            // [FIRST TRANSFER TOKENS TO THIS CONTRACT] 
+            // Load in the signature of the `transferFrom` function
             PUSH32 0x23b872dd00000000000000000000000000000000000000000000000000000000;
             PUSH0;
             MSTORE;
@@ -282,27 +245,27 @@ if (sighash == 0xc1a38006) {
             SLOAD;
             PUSH1 4;
             MSTORE;
-            // GET OUR CONTRACT
+            // Get our contract address
             ADDRESS;
             PUSH1 36;
             MSTORE;
-            // Need to load in the last total supply of the CALLDATA
+            // Need to load in the last total supply argument of the calldata
             PUSH1 100;
             CALLDATALOAD;
             PUSH1 68;
             MSTORE; 
-            // Now we can call the contract .... I love winning  
+            //  
 
             // Load in the token contract
             PUSH1 4;
             CALLDATALOAD;
             DUP1;
-            // STORE THE TOKEN AT MSTORE 128.
+            // Store the token information
             PUSH1 128;
             MSTORE;
             // MEMORY SHOULD NOW BE [transferfrom sighash][dropper contract][our contract][total supply]
             //                              4                 36          68               100
-            // We can now call the service
+            // We can now call the token contract
             PUSH0;      // retSize
             PUSH0;      // retOffset
             PUSH1 128;  // argSize 
@@ -312,13 +275,13 @@ if (sighash == 0xc1a38006) {
             GAS;        // GAS
             CALL;
 
-            // NOW we need to iterate over all the entries 
-
+            // [LOAD IN THE SIZE OF ARRAYS] 
             // Size of the first array will match the second one so we use that to track the location.
-            PUSH0; // Need to start at value 0
+
+            // Global index pointer
             PUSH0;
-            MSTORE; // Global index pointer 
-            // [first index]
+            PUSH0;
+            MSTORE; 
                     
             // Load in the first array entry
             // [sighahs][token][array1 *here*]
@@ -329,11 +292,6 @@ if (sighash == 0xc1a38006) {
             DUP1;
             PUSH1 64;
             MSTORE;
-            // Stores the final location of the array
-
-            //  0, 32 -> indexes
-            // 64, 96 -> Locations of the arrays
-            // 128 -> Token contract
 
             // Now we also load in the size pointer to slot 2
             // [sighahs][token][array1][array2 *here*]
@@ -349,13 +307,16 @@ if (sighash == 0xc1a38006) {
             PUSH1 32;
             MSTORE;
 
-            // NOW I NEED TO SETUP THE MEMORY REGIONS
             // First four bytes for the transferFrom function
-            // THen I'll need to supply the receiver and the amount
             PUSH32 0xa9059cbb00000000000000000000000000000000000000000000000000000000;
             PUSH1 160;
             MSTORE;
-            // NOW I SHOULD HAVE ALL I NEED TO WIN
+
+            //  0, 32 -> indexes
+            // 64, 96 -> Locations of the arrays
+            // 128 -> Token contract
+            // 160 -> sighash
+            // 160 + receiver and amount (done in readERC20TransferEntry)
         }
 
         readERC20TransferEntry;
@@ -383,15 +344,11 @@ if (sighash == 0xc1a38006) {
                 }
             }
             else {
-                // CALL ERC721 
                 assembly {
-                    // NOW we need to iterate over all the entries 
-
-                    // Size of the first array will match the second one so we use that to track the location.
-                    PUSH0; // Need to start at value 0
+                    // Global index pointer
+                    PUSH0; 
                     PUSH0;
-                    MSTORE; // Global index pointer 
-                    // [first index]
+                    MSTORE; 
                             
                     // Load in the first array entry
                     // [sighahs][token][array1 *here*]
@@ -402,11 +359,6 @@ if (sighash == 0xc1a38006) {
                     DUP1;
                     PUSH1 64;
                     MSTORE;
-                    // Stores the final location of the array
-
-                    //  0, 32 -> indexes
-                    // 64, 96 -> Locations of the arrays
-                    // 128 -> Token contract
 
                     // Now we also load in the size pointer to slot 2
                     // [sighahs][token][array1][array2 *here*]
@@ -422,9 +374,7 @@ if (sighash == 0xc1a38006) {
                     PUSH1 32;
                     MSTORE;
 
-                    // NOW I NEED TO SETUP THE MEMORY REGIONS
                     // First four bytes for the transferFrom function
-                    // THen I'll need to supply the receiver and the amount
                     PUSH32 0x23b872dd00000000000000000000000000000000000000000000000000000000;
                     PUSH1 160;
                     MSTORE;

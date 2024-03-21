@@ -113,7 +113,6 @@ pub fn get_get_ast(entries: [][]const u8) !std.ArrayList(GlobalBaseBlocks) {
     var oldIndex = parser.currentIndex;
     while (parser.currentIndex < entries.len) {
         const function: FunctionBlockError = get_function_block(&parser);
-        std.debug.print("Current symbol: {s} ({}) \n", .{ .val = parser.entries[parser.currentIndex], .index = parser.currentIndex });
 
         switch (function) {
             FunctionBlockError.FunctionBlock => |assemblyBlock| {
@@ -321,14 +320,9 @@ fn parse_assembly_block(parser: *Parser) ErrorOrBlock {
             // TODO: Improve this interface
             // While we don't see a "}" we are inside a assembly block
             while (!std.mem.eql(u8, parser_var.peek_nexy_symbol(), "}")) {
-
                 // Opcodes I hope  ...
                 const value = parser_var.get_next_symbol();
-                std.debug.print("token == {s} \n", .{value});
-
-                // Opcode metadata
                 var opcodeMap = OpcodesMap.Opcodes.init().OpcodesMap;
-
                 const opcodeType = opcodeMap.get(value);
 
                 if (opcodeType == null) {

@@ -28,7 +28,7 @@ pub fn main() !void {
 
     var constructorArguments: u32 = 0;
     if (args.len >= 4) {
-        constructorArguments = output.parseToU8(args[3]) catch {
+        constructorArguments = output.parse_to_u8(args[3]) catch {
             @panic("Failed to parse constructor argument count");
         };
     }
@@ -37,7 +37,7 @@ pub fn main() !void {
     const results = try tokenizer.get_tokens(content);
     const assembly = try ast.get_get_ast(results);
 
-    std.debug.print("Optional argument: {?}\n", .{compileDeployment});
+    std.debug.print("compile deployment ? : {?}\n", .{compileDeployment});
     try output.print_assembly_block(assembly, compileDeployment, constructorArguments);
 }
 
